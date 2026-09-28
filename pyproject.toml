@@ -1,0 +1,8 @@
+[project]
+name = "aura-organic-growth"
+version = "0.1.0"
+description = "Inteligencia web: velocidad, SEO, GEO/AEO"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["src"]
