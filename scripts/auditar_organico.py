@@ -30,7 +30,7 @@ os.environ["PATH"] = str(ROOT / ".venv" / "bin") + os.pathsep + os.environ.get("
 load_dotenv(ROOT / ".env")
 
 from aura_organic_growth.lead_intel import ensure_lead_intel_on_path  # noqa: E402
-from aura_organic_growth.places_ficha import ficha_google  # noqa: E402
+from aura_organic_growth.places_ficha import ficha_google, para_guardar  # noqa: E402
 
 ensure_lead_intel_on_path()
 from src.senales_sitio import core_web_vitals, formulario, schema_org  # noqa: E402
@@ -234,7 +234,7 @@ def geo_audit(url: str) -> dict:
 
 
 def places_local(empresa: str, ciudad: str, pais: str) -> dict:
-    return ficha_google(empresa, ciudad, pais)
+    return para_guardar(ficha_google(empresa, ciudad, pais))
 
 
 def home_html(url: str) -> dict:

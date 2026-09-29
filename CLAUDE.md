@@ -113,7 +113,9 @@ servicio pagado.
   landing» y no se audita. Si la portada no responde, la madurez queda
   «no determinable» y tampoco se audita.
 - **Places:** una Text Search por lead, la ficha de Google. Sin contexto
-  de lugar.
+  de lugar. Se guarda solo el `place_id`. No se precarga ni se almacena
+  el resto del contenido de Places. Si una nota o las reseñas salen al
+  prospecto sin mapa, llevan el logo de Google.
 - **Cada borrador guarda medición.** Hipótesis, tipo de apertura
   (`riesgo` / `oportunidad` / `esfuerzo` / `dato`), llamado a la acción,
   industria, `fecha_envio` (vacía hasta que Cristina envía desde Gmail) y
