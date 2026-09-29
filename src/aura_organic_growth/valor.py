@@ -1,8 +1,8 @@
 """Valor interno de la oferta web. El modelo propone evidencia; Python calcula.
 
-No usa horas ahorradas: esa cuenta es de automatización. Los precios de
-lanzamiento salen de los paquetes del perfil. El ticket por industria queda
-en «sin dato» hasta que Cristina lo defina.
+No usa horas ahorradas: esa cuenta es de automatización. Los paquetes y
+el ajuste por país quedan en «pendiente de Cristina» hasta que los
+apruebe. El precio de un lead no sale de la propuesta.
 """
 
 from __future__ import annotations
@@ -56,10 +56,10 @@ def hay_trigger(evidencia: str) -> bool:
 def cargar_perfil(path: Path | None = None) -> dict:
     origen = path or PERFIL
     if not origen.is_file():
-        return {"ticket_por_industria": "sin dato", "precios_lanzamiento": {}, "hipotesis_periodo": []}
+        return {"ticket_por_industria": "sin dato", "precios_paquetes": {}, "hipotesis_periodo": []}
     data = json.loads(origen.read_text(encoding="utf-8"))
     data.setdefault("ticket_por_industria", "sin dato")
-    data.setdefault("precios_lanzamiento", {})
+    data.setdefault("precios_paquetes", data.get("precios_lanzamiento") or {})
     data.setdefault("hipotesis_periodo", [])
     return data
 
@@ -73,15 +73,15 @@ def hipotesis_activa(profile: dict | None = None) -> str:
 
 
 def precios_lanzamiento(profile: dict) -> dict:
-    """Menú de paquetes. No elige paquete para el lead ni usa el ticket por industria."""
-    lanzamiento = profile.get("precios_lanzamiento") or {}
-    paquetes = lanzamiento.get("paquetes") or {}
-    if not paquetes:
-        paquetes = "sin dato"
+    """La propuesta no se cobra hasta que Cristina cambie el estado."""
+    bloque = profile.get("precios_paquetes") or {}
+    estado = str(bloque.get("estado") or "pendiente de Cristina")
     return {
-        "clientes": lanzamiento.get("clientes"),
-        "paquetes": paquetes,
+        "estado": estado,
+        "propuesta": bloque.get("propuesta") or "sin dato",
+        "ajuste_por_pais": bloque.get("ajuste_por_pais") or "pendiente de Cristina",
         "ticket_por_industria": "sin dato",
+        "precio_del_lead": "sin dato",
     }
 
 

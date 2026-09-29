@@ -100,11 +100,13 @@ servicio pagado.
 - **Ficha interna, nunca al cliente:** capacidad de pago, valor en juego
   por industria, madurez digital, temperatura, costo de cambio y precio.
   La necesidad se redacta como «lo que hacen los mejores de su industria»
-  (`corpus/adenda-brecha-segura.md`). Los precios de lanzamiento (primeros
-  3 clientes) viven en el perfil: velocidad USD 400, SEO+GEO USD 500/mes,
-  landing USD 250 + 25/mes. `ticket_por_industria` queda en «sin dato»
-  hasta que Cristina lo defina. La hipótesis activa del período es una:
-  «pega H1».
+  (`corpus/adenda-brecha-segura.md`). Los precios por paquete y la tabla
+  de ajuste por país viven en el perfil con estado «pendiente de Cristina»
+  hasta que los apruebe. La propuesta es velocidad USD 400, SEO+GEO
+  USD 500/mes y landing USD 250 + 25/mes. Mientras sigan pendientes, el
+  precio del lead queda en «sin dato». `ticket_por_industria` también.
+  La hipótesis activa del período es una: los mensajes con ancla=dato
+  tendrán respuestas más sustantivas que ancla=oportunidad.
 - **Lote:** los 10 leads con mejor score en Supabase, sin PFS. Se guarda
   el país de cada empresa tal como está en la ficha; si falta, «sin dato».
   Antes de auditar se clasifica la madurez con evidencia (CRM, etiqueta de

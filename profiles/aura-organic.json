@@ -2,15 +2,27 @@
   "client_id": "aura-organic",
   "nombre": "Aura Studio",
   "ticket_por_industria": "sin dato",
-  "precios_lanzamiento": {
-    "clientes": 3,
-    "paquetes": {
+  "precios_paquetes": {
+    "estado": "pendiente de Cristina",
+    "propuesta": {
       "velocidad": {"usd": 400},
       "seo_geo": {"usd": 500, "cada": "mes"},
       "landing": {"inicial_usd": 250, "mes_usd": 25}
+    },
+    "ajuste_por_pais": {
+      "estado": "pendiente de Cristina",
+      "filas": [
+        {"pais": "Estados Unidos", "factor": "pendiente de Cristina"},
+        {"pais": "Colombia", "factor": "pendiente de Cristina"},
+        {"pais": "Brasil", "factor": "pendiente de Cristina"}
+      ]
     }
   },
   "hipotesis_periodo": [
-    {"id": "pega-h1", "enunciado": "pega H1", "activa": true}
+    {
+      "id": "ancla-dato",
+      "activa": true,
+      "enunciado": "Los mensajes con ancla=dato (una medición propia de su sitio) tendrán respuestas más sustantivas que ancla=oportunidad en dueños o gerentes de pymes con sitio web, porque un número verificable de su propio sitio genera curiosidad concreta y creíble aun viniendo de una marca desconocida (regla de concreción, Nyilasy 2024)."
+    }
   ]
 }
