@@ -1,0 +1,16 @@
+{
+  "client_id": "aura-organic",
+  "nombre": "Aura Studio",
+  "ticket_por_industria": "sin dato",
+  "precios_lanzamiento": {
+    "clientes": 3,
+    "paquetes": {
+      "velocidad": {"usd": 400},
+      "seo_geo": {"usd": 500, "cada": "mes"},
+      "landing": {"inicial_usd": 250, "mes_usd": 25}
+    }
+  },
+  "hipotesis_periodo": [
+    {"id": "pega-h1", "enunciado": "pega H1", "activa": true}
+  ]
+}

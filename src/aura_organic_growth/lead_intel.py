@@ -28,6 +28,36 @@ def ensure_lead_intel_on_path() -> Path:
     return root
 
 
+def corpus_dir() -> Path:
+    path = lead_intel_root() / "corpus"
+    if not (path / "manifiesto.md").is_file():
+        raise FileNotFoundError(f"no está el corpus en {path}")
+    return path
+
+
+def skill_redaccion() -> Path:
+    path = lead_intel_root() / ".claude" / "skills" / "redaccion-primer-contacto-aura" / "SKILL.md"
+    if not path.is_file():
+        raise FileNotFoundError(f"no está la skill de redacción en {path}")
+    return path
+
+
+def skill_hipotesis() -> Path:
+    path = lead_intel_root() / ".claude" / "skills" / "hipotesis-outbound" / "SKILL.md"
+    if not path.is_file():
+        raise FileNotFoundError(f"no está la skill de hipótesis en {path}")
+    return path
+
+
+def leer(path: Path) -> str:
+    """Lee un archivo del repo hermano. No lo copia a este proyecto."""
+    root = lead_intel_root()
+    resolved = path.resolve()
+    if resolved != root and root not in resolved.parents:
+        raise PermissionError(f"fuera del repo hermano: {resolved}")
+    return resolved.read_text(encoding="utf-8")
+
+
 def refuse_write(path: Path) -> None:
     """Corta cualquier escritura dentro del repo hermano."""
     resolved = path.resolve()
