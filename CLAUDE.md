@@ -127,6 +127,22 @@ servicio pagado.
   una Text Search de categoría y ciudad, compartida, y solo sus place_id.
   La velocidad se compara con LCP de campo (PageSpeed o CrUX). Sin dato
   de campo: «sin datos de campo».
+- **Páginas que faltan:** servicio × ciudad × intención sin una URL que
+  responda. Con una sola portada el hueco queda «no determinable».
+- **CrUX:** datos de usuarios reales del origen. Sin registro: «sin datos
+  de campo». Nunca «está bien». El laboratorio no sustituye al campo.
+- **Knowledge Graph:** si la API devuelve la marca como entidad. Sin key,
+  o si el nombre no coincide, no se afirma que Google no la reconoce.
+  Key: `KNOWLEDGE_GRAPH_API_KEY`.
+- **Señales de compra (6 meses, verificables):** cambio de portada en
+  Wayback CDX (dos HTML distintos: inferido, no se llama rediseño sin
+  más), subdominio nuevo en crt.sh, vacante de marketing, SEO o contenido
+  si la página la trae. Expansión, sede y lanzamiento solo con evidencia.
+  La pauta activa la anota Cristina a mano.
+- **Hallazgos:** cada uno con nivel observado, inferido o no determinable.
+  Los 5 se ordenan por consecuencia: velocidad y errores de todo el sitio
+  antes que el detalle de una página. Nunca como hecho: tráfico estimado,
+  backlinks totales, ventas perdidas, puntaje GEO.
 - **Cada borrador guarda medición.** Hipótesis, tipo de apertura
   (`riesgo` / `oportunidad` / `esfuerzo` / `dato`), llamado a la acción,
   industria, `fecha_envio` (vacía hasta que Cristina envía desde Gmail) y
