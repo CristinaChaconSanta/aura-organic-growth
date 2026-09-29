@@ -47,6 +47,37 @@ def ficha_google(empresa: str, ciudad: str = "", pais: str = "", session=None) -
     return {"status": "ok", "llamadas": 1, "query": query, "place_id": place_id}
 
 
+def ids_por_categoria(categoria: str, ciudad: str, pais: str = "", session=None) -> dict:
+    """Una Text Search de la categoría en la ciudad. Solo place_id, sin ficha."""
+    api_key = os.getenv("GOOGLE_MAPS_API_KEY", "").strip()
+    categoria = str(categoria or "").strip()
+    ciudad = str(ciudad or "").strip()
+    if not categoria or not ciudad or categoria.casefold() == "sin dato":
+        return {"status": "sin_dato", "razon": "sin categoría o sin ciudad", "llamadas": 0, "place_ids": []}
+    if not api_key:
+        return {"status": "sin_dato", "razon": "sin GOOGLE_MAPS_API_KEY", "llamadas": 0, "place_ids": []}
+    query = ", ".join(parte for parte in (categoria, ciudad, pais) if parte)
+    http = session or requests
+    resp = http.post(
+        TEXT_URL,
+        headers={
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": api_key,
+            "X-Goog-FieldMask": CAMPOS,
+        },
+        json={"textQuery": query, "languageCode": "es", "pageSize": 10},
+        timeout=20,
+    )
+    if resp.status_code != 200:
+        return {"status": "sin_dato", "razon": f"http_{resp.status_code}", "llamadas": 1, "place_ids": []}
+    ids = []
+    for place in (resp.json() or {}).get("places") or []:
+        place_id = str(place.get("id") or "").replace("places/", "")
+        if place_id:
+            ids.append(place_id)
+    return {"status": "ok", "llamadas": 1, "query": query, "place_ids": ids}
+
+
 def para_guardar(resultado: dict) -> dict:
     """Tira nombre, dirección, nota y reseñas antes de escribir a disco."""
     return {clave: resultado[clave] for clave in _GUARDABLE if clave in resultado}

@@ -116,6 +116,17 @@ servicio pagado.
   de lugar. Se guarda solo el `place_id`. No se precarga ni se almacena
   el resto del contenido de Places. Si una nota o las reseñas salen al
   prospecto sin mapa, llevan el logo de Google.
+- **Búsquedas comerciales:** DataForSEO SERP, cola estándar (USD 0,0006
+  por búsqueda de referencia). Hasta 30 consultas del tipo «[servicio] en
+  [ciudad]», «precio [servicio]» y «mejor [servicio] en [ciudad]», solo
+  con servicio y ciudad observados. Cada una registra fecha, país, ciudad,
+  idioma y dispositivo. Sin `DATAFORSEO_LOGIN` y `DATAFORSEO_PASSWORD`,
+  «sin dato».
+- **Competidores:** dominios que más se repiten en esas búsquedas, separados
+  en directorios, marketplaces, medios y negocios. Para un negocio local,
+  una Text Search de categoría y ciudad, compartida, y solo sus place_id.
+  La velocidad se compara con LCP de campo (PageSpeed o CrUX). Sin dato
+  de campo: «sin datos de campo».
 - **Cada borrador guarda medición.** Hipótesis, tipo de apertura
   (`riesgo` / `oportunidad` / `esfuerzo` / `dato`), llamado a la acción,
   industria, `fecha_envio` (vacía hasta que Cristina envía desde Gmail) y
