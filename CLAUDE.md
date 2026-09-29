@@ -105,6 +105,8 @@ servicio pagado.
   landing USD 250 + 25/mes. `ticket_por_industria` queda en «sin dato»
   hasta que Cristina lo defina. La hipótesis activa del período es una:
   «pega H1».
+- **Lote:** los 10 leads con mejor score en Supabase, sin PFS. Se guarda
+  el país de cada empresa tal como está en la ficha; si falta, «sin dato».
 - **Places:** una Text Search por lead, la ficha de Google. Sin contexto
   de lugar.
 - **Cada borrador guarda medición.** Hipótesis, tipo de apertura
