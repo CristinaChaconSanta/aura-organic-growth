@@ -1,4 +1,4 @@
-from aura_organic_growth.lote import es_pfs, guardar, seleccionar
+from aura_organic_growth.lote import descargar_fichas, es_pfs, guardar, seleccionar
 
 
 def _fila(lead_id, score, empresa, pais, fecha="2026-09-01", dominio="", ciudad=""):
@@ -29,6 +29,16 @@ def test_diez_mejores_sin_pfs_y_con_pais():
     assert lote[0]["pais"] == "sin dato"
     assert any(item["pais"] == "sin dato" for item in lote)
     assert all("email" not in item for item in lote)
+
+
+def test_descarga_hasta_la_pagina_corta():
+    paginas = {0: [{"lead_id": i} for i in range(80)], 80: [{"lead_id": 80}]}
+
+    def get(offset, tamano):
+        assert tamano == 80
+        return paginas.get(offset, [])
+
+    assert len(descargar_fichas(get)) == 81
 
 
 def test_guarda_fuera_del_repo_hermano(tmp_path):

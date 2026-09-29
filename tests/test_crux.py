@@ -1,4 +1,4 @@
-from aura_organic_growth.crux import campo
+from aura_organic_growth.crux import campo, hallazgo_velocidad
 
 
 class _Resp:
@@ -8,6 +8,14 @@ class _Resp:
 
     def json(self):
         return self._payload
+
+
+def test_un_lcp_bueno_no_se_vuelve_hallazgo():
+    assert hallazgo_velocidad({"lcp_ms": 2000}, "2026-09-29") is None
+    assert hallazgo_velocidad({"lcp": "sin datos de campo"}, "2026-09-29") is None
+    grave = hallazgo_velocidad({"lcp_ms": 6800, "fuente": "campo"}, "2026-09-29")
+    assert grave["alcance"] == "sitio"
+    assert "ventas" not in grave["texto"]
 
 
 def test_sin_registro_no_dice_que_esta_bien(monkeypatch):

@@ -52,6 +52,18 @@ def seleccionar(filas: list[dict], n: int = 10) -> list[dict]:
     return orden[:n]
 
 
+def descargar_fichas(get, tamano: int = 80) -> list[dict]:
+    """get(offset, tamano) devuelve una página. Corta cuando la página viene corta."""
+    filas: list[dict] = []
+    offset = 0
+    while True:
+        pagina = list(get(offset, tamano) or [])
+        filas.extend(pagina)
+        if len(pagina) < tamano:
+            return filas
+        offset += tamano
+
+
 def guardar(lote: list[dict], path: Path | None = None) -> Path:
     destino = path or DESTINO
     refuse_write(destino)

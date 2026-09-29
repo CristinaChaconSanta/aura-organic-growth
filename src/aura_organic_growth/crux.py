@@ -13,6 +13,24 @@ def _key() -> str:
     return os.getenv("CRUX_API_KEY", "").strip() or os.getenv("PAGESPEED_API_KEY", "").strip()
 
 
+def hallazgo_velocidad(medicion: dict, fecha: str) -> dict | None:
+    """Solo entra si hay un LCP de campo peor que el umbral bueno de Google."""
+    if medicion.get("lcp_ms") is None:
+        return None
+    segundos = medicion["lcp_ms"] / 1000
+    if segundos <= 2.5:
+        return None
+    umbral = "Google marca por encima de 4 s como lento." if segundos > 4 else "Google marca por encima de 2,5 s como mejorable."
+    fuente = medicion.get("fuente") or "campo"
+    return {
+        "texto": f"El origen carga el contenido principal en {segundos:.1f} s para usuarios reales ({fuente}, {fecha}). {umbral}",
+        "consecuencia": "Quien entra desde el celular espera antes de ver la página.",
+        "alcance": "sitio",
+        "tipo": "velocidad",
+        "nivel": "observado",
+    }
+
+
 def _lcp(percentil) -> dict:
     if percentil is None:
         return {"lcp": SIN_CAMPO, "nivel": "no determinable"}
