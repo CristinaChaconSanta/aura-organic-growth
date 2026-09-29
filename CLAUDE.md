@@ -107,6 +107,11 @@ servicio pagado.
   «pega H1».
 - **Lote:** los 10 leads con mejor score en Supabase, sin PFS. Se guarda
   el país de cada empresa tal como está en la ficha; si falta, «sin dato».
+  Antes de auditar se clasifica la madurez con evidencia (CRM, etiqueta de
+  pauta, analítica, blog con fecha de los últimos 6 meses). Madurez media
+  o alta sigue a la auditoría. Madurez baja o sin web se marca «derivar a
+  landing» y no se audita. Si la portada no responde, la madurez queda
+  «no determinable» y tampoco se audita.
 - **Places:** una Text Search por lead, la ficha de Google. Sin contexto
   de lugar.
 - **Cada borrador guarda medición.** Hipótesis, tipo de apertura
