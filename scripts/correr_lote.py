@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from datetime import date
 from pathlib import Path
 from urllib.parse import urlparse
@@ -46,20 +47,29 @@ def _headers_supabase() -> tuple[str, dict]:
 
 
 def _pagina(base: str, headers: dict, offset: int, tamano: int) -> list:
-    resp = requests.get(
-        f"{base}/rest/v1/fichas",
-        headers=headers,
-        params={
-            "select": "score,fecha,lead_id,leads(empresa,pais,ciudad,url,dominio,industria)",
-            "order": "score.desc.nullslast",
-            "limit": str(tamano),
-            "offset": str(offset),
-        },
-        timeout=40,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    return data if isinstance(data, list) else []
+    ultimo: Exception | None = None
+    for intento in range(4):
+        try:
+            resp = requests.get(
+                f"{base}/rest/v1/fichas",
+                headers=headers,
+                params={
+                    "select": "score,fecha,lead_id,leads(empresa,pais,ciudad,url,dominio,industria)",
+                    "order": "score.desc.nullslast",
+                    "limit": str(tamano),
+                    "offset": str(offset),
+                },
+                timeout=40,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data if isinstance(data, list) else []
+        except requests.RequestException as exc:
+            ultimo = exc
+            time.sleep(1.5 * (intento + 1))
+    if ultimo:
+        raise ultimo
+    return []
 
 
 def _origen(url: str, dominio: str) -> str:
@@ -80,6 +90,13 @@ def _portada(url: str) -> tuple[int | None, str | None]:
     except requests.RequestException:
         return None, None
     return resp.status_code, resp.text[:200_000]
+
+
+def _seguro(llamada, fallo: dict) -> dict:
+    try:
+        return llamada()
+    except requests.RequestException:
+        return fallo
 
 
 def _medir(lead: dict) -> dict:
@@ -111,17 +128,20 @@ def _medir(lead: dict) -> dict:
             "tipo": "error",
             "nivel": "observado",
         })
-    velocidad = campo(origen)
+    velocidad = _seguro(lambda: campo(origen), {"lcp": "sin datos de campo", "nivel": "no determinable", "razon": "sin respuesta"})
     hallazgo = hallazgo_velocidad(velocidad, HOY)
     if hallazgo:
         hallazgos.append(hallazgo)
     dominio = urlparse(origen).netloc.removeprefix("www.")
     fila.update({
-        "place": para_guardar(ficha_google(lead["empresa"], lead["ciudad"], lead["pais"])),
+        "place": para_guardar(_seguro(
+            lambda: ficha_google(lead["empresa"], lead["ciudad"], lead["pais"]),
+            {"status": "sin_dato", "razon": "sin respuesta", "llamadas": 0},
+        )),
         "velocidad": {k: velocidad[k] for k in velocidad if k in ("lcp", "lcp_ms", "nivel", "fuente", "razon")},
-        "entidad": entidad(lead["empresa"]),
-        "wayback": wayback(dominio),
-        "subdominios": subdominios_nuevos(dominio),
+        "entidad": _seguro(lambda: entidad(lead["empresa"]), {"status": "sin dato", "nivel": "no determinable"}),
+        "wayback": _seguro(lambda: wayback(dominio), {"senal": "cambio de portada", "nivel": "no determinable"}),
+        "subdominios": _seguro(lambda: subdominios_nuevos(dominio), {"senal": "subdominio nuevo", "nivel": "no determinable", "nombres": []}),
         "vacante": vacante(html),
         "pauta": pauta_activa(),
         "busquedas": encolar([], ciudad=lead["ciudad"], pais=lead["pais"]),
@@ -136,7 +156,7 @@ def _medir(lead: dict) -> dict:
 
 def main() -> None:
     base, headers = _headers_supabase()
-    filas = descargar_fichas(lambda offset, tamano: _pagina(base, headers, offset, tamano))
+    filas = descargar_fichas(lambda offset, tamano: _pagina(base, headers, offset, tamano), tamano=30)
     lote = seleccionar(filas)
     guardar(lote)
     vistos: set[tuple[str, str]] = set()
@@ -147,7 +167,10 @@ def main() -> None:
             clave = (lead["industria"], lead["ciudad"])
             if clave not in vistos and lead["industria"] != "sin dato" and lead["ciudad"] != "sin dato":
                 vistos.add(clave)
-                fila["places_categoria"] = ids_por_categoria(lead["industria"], lead["ciudad"], lead["pais"])
+                fila["places_categoria"] = _seguro(
+                    lambda: ids_por_categoria(lead["industria"], lead["ciudad"], lead["pais"]),
+                    {"status": "sin_dato", "llamadas": 0, "place_ids": []},
+                )
         resumen.append(fila)
         print(f"{fila['empresa']} ({fila['pais']}) — {fila['problema']}", flush=True)
     destino = ROOT / "data" / "lotes" / f"resumen-{HOY}.json"
