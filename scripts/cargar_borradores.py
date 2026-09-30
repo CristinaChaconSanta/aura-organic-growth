@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from aura_organic_growth.cruce import dominio_de  # noqa: E402
+from aura_organic_growth.labs import adjuntar  # noqa: E402
 from aura_organic_growth.lead_intel import lead_intel_root  # noqa: E402
 from aura_organic_growth.staging import armar_lote  # noqa: E402
 from aura_organic_growth.supabase_rest import pedir  # noqa: E402
@@ -90,19 +91,24 @@ def _lote() -> tuple[list[dict], dict[str, dict], str]:
     carpeta = ROOT / "data" / "lotes"
     seleccion = json.loads((carpeta / "seleccion.json").read_text(encoding="utf-8"))
     resumenes = sorted(carpeta.glob("resumen-*.json"))
-    if not resumenes:
-        return seleccion, {}, "sin dato"
-    path = resumenes[-1]
-    fecha = path.stem.removeprefix("resumen-")
+    fecha = "sin dato"
     mediciones = {}
-    for fila in json.loads(path.read_text(encoding="utf-8")):
-        dominio = ""
-        for lead in seleccion:
-            if lead.get("empresa") == fila.get("empresa") and lead.get("pais") == fila.get("pais"):
-                dominio = dominio_de(str(lead.get("dominio") or ""))
-                break
-        if dominio:
-            mediciones[dominio] = fila
+    if resumenes:
+        path = resumenes[-1]
+        fecha = path.stem.removeprefix("resumen-")
+        for fila in json.loads(path.read_text(encoding="utf-8")):
+            dominio = ""
+            for lead in seleccion:
+                if lead.get("empresa") == fila.get("empresa") and lead.get("pais") == fila.get("pais"):
+                    dominio = dominio_de(str(lead.get("dominio") or ""))
+                    break
+            if dominio:
+                mediciones[dominio] = fila
+    archivos = sorted(carpeta.glob("labs-lote-*.json"))
+    if archivos:
+        guardado = json.loads(archivos[-1].read_text(encoding="utf-8"))
+        if isinstance(guardado, list):
+            mediciones = adjuntar(mediciones, guardado)
     return seleccion, mediciones, fecha
 
 

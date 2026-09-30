@@ -190,6 +190,19 @@ def hallazgo_de_labs(registro: dict | None) -> dict | None:
     }
 
 
+def adjuntar(mediciones: dict[str, dict], registros: list[dict]) -> dict[str, dict]:
+    """Pega Labs por dominio. El nombre de la empresa no se usa."""
+    salida = {dominio: dict(fila) for dominio, fila in mediciones.items()}
+    for registro in registros:
+        dominio = dominio_de(str(registro.get("dominio") or ""))
+        if not dominio:
+            continue
+        base = dict(salida.get(dominio) or {})
+        base["labs"] = registro
+        salida[dominio] = base
+    return salida
+
+
 def consultar(
     dominio: str,
     pais: str,

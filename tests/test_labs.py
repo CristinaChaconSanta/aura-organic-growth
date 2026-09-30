@@ -1,6 +1,14 @@
 from datetime import date
 
-from aura_organic_growth.labs import consultar, dominios_de, es_red_social, hallazgo_de_labs, mercado_de, palabras_de
+from aura_organic_growth.labs import (
+    adjuntar,
+    consultar,
+    dominios_de,
+    es_red_social,
+    hallazgo_de_labs,
+    mercado_de,
+    palabras_de,
+)
 from aura_organic_growth.staging import hallazgos_de_medicion
 
 
@@ -145,3 +153,14 @@ def test_dive_entra_con_empleo_y_marca_no_con_servicio():
     assert hallazgos_de_medicion({"labs": _dive(), "hallazgos": []}, "2026-09-30")[0]["texto"].startswith(
         "Aparece por empleo y por la marca"
     )
+
+
+def test_labs_se_pega_por_dominio_no_por_nombre():
+    mediciones = adjuntar(
+        {"terraenergy.io": {"empresa": "Terra"}},
+        [{"dominio": "https://www.terraenergy.io", "status": "ok", "palabras": [{"palabra": "terra energy", "posicion": 3}]}],
+    )
+    assert mediciones["terraenergy.io"]["labs"]["palabras"][0]["palabra"] == "terra energy"
+    solo_terralink = adjuntar({}, [{"dominio": "terralink.com", "palabras": [{"palabra": "terra", "posicion": 1}]}])
+    assert "terraenergy.io" not in solo_terralink
+    assert solo_terralink["terralink.com"]["labs"]["dominio"] == "terralink.com"
