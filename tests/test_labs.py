@@ -6,6 +6,7 @@ from aura_organic_growth.labs import (
     dominios_de,
     es_red_social,
     hallazgo_de_labs,
+    leer_saldo,
     mercado_de,
     palabras_de,
 )
@@ -99,6 +100,18 @@ def test_consulta_chile_en_los_dos_endpoints(monkeypatch):
             return self.cuerpo
 
     class Http:
+        def get(self, url, auth, timeout):
+            assert url.endswith("/appendix/user_data")
+            assert auth == ("login", "clave")
+
+            class Saldo:
+                status_code = 200
+
+                def json(self):
+                    return {"tasks": [{"status_code": 20000, "result": [{"money": {"balance": 1}}]}]}
+
+            return Saldo()
+
         def post(self, url, json, auth, timeout):
             llamadas.append((url, json, auth))
             if "ranked_keywords" in url:
@@ -117,6 +130,30 @@ def test_consulta_chile_en_los_dos_endpoints(monkeypatch):
     assert resultado["status"] == "ok"
     assert resultado["palabras"][0]["palabra"] == "dive"
     assert resultado["dominios"] == [{"dominio": "agencia.cl", "intersecciones": 2}]
+
+
+def test_saldo_bajo_no_llama_a_labs(monkeypatch):
+    monkeypatch.setenv("DATAFORSEO_LOGIN", "login")
+    monkeypatch.setenv("DATAFORSEO_PASSWORD", "clave")
+    assert leer_saldo({"tasks": [{"result": [{"money": {"balance": 0.09}}]}]}) == 0.09
+
+    class Http:
+        def get(self, url, auth, timeout):
+            class Saldo:
+                status_code = 200
+
+                def json(self):
+                    return {"tasks": [{"result": [{"money": {"balance": 0.09}}]}]}
+
+            return Saldo()
+
+        def post(self, *args, **kwargs):
+            raise AssertionError("no debía gastar Labs")
+
+    resultado = consultar("dive.cl", "Chile", session=Http(), hoy=date(2026, 9, 30))
+    assert resultado["status"] == "sin dato"
+    assert resultado["razon"] == "saldo bajo USD 0.10"
+    assert resultado["palabras"] == []
 
 
 def _dive():

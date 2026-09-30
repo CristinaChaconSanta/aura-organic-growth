@@ -14,6 +14,8 @@ from aura_organic_growth.cruce import dominio_de, plano
 
 RANKED = "https://api.dataforseo.com/v3/dataforseo_labs/google/ranked_keywords/live"
 COMPETITORS = "https://api.dataforseo.com/v3/dataforseo_labs/google/competitors_domain/live"
+SALDO_URL = "https://api.dataforseo.com/v3/appendix/user_data"
+SALDO_MINIMO = 0.10
 FUENTE = "DataForSEO Labs"
 MERCADOS = {
     "chile": {"location_code": 2152, "language_code": "es"},
@@ -32,6 +34,30 @@ def mercado_de(pais: str) -> dict | None:
 def es_red_social(host: str) -> bool:
     limpio = dominio_de(host) or str(host or "").casefold().removeprefix("www.")
     return any(parte in REDES for parte in limpio.split("."))
+
+
+def leer_saldo(data: dict) -> float | None:
+    tareas = (data or {}).get("tasks") or []
+    if not tareas:
+        return None
+    resultado = (tareas[0].get("result") or [None])[0] or {}
+    balance = (resultado.get("money") or {}).get("balance")
+    if isinstance(balance, (int, float)):
+        return float(balance)
+    return None
+
+
+def _freno(http, auth) -> str | None:
+    """None si se puede llamar. Antes de cada llamada de Labs."""
+    resp = http.get(SALDO_URL, auth=auth, timeout=30)
+    if getattr(resp, "status_code", 0) != 200:
+        return "sin saldo"
+    valor = leer_saldo(resp.json() or {})
+    if valor is None:
+        return "sin saldo"
+    if valor < SALDO_MINIMO:
+        return "saldo bajo USD 0.10"
+    return None
 
 
 def _credenciales() -> tuple[str, str]:
@@ -223,11 +249,15 @@ def consultar(
     if not login or not password:
         return _vacio(host, pais, fecha, "sin DATAFORSEO_LOGIN")
     http = session or __import__("requests")
+    auth = (login, password)
     cuerpo_base = {"target": host, **mercado}
+    freno = _freno(http, auth)
+    if freno:
+        return _vacio(host, pais, fecha, freno)
     ranked = http.post(
         RANKED,
         json=[{**cuerpo_base, "item_types": ["organic"], "limit": limite_palabras}],
-        auth=(login, password),
+        auth=auth,
         timeout=60,
     )
     if ranked.status_code != 200:
@@ -235,10 +265,25 @@ def consultar(
     palabras, truncado, error = palabras_de(ranked.json(), fecha)
     if error:
         return _vacio(host, pais, fecha, error)
+    freno = _freno(http, auth)
+    if freno:
+        return {
+            "dominio": host,
+            "pais": pais or "sin dato",
+            "location_code": mercado["location_code"],
+            "language_code": mercado["language_code"],
+            "fecha": fecha,
+            "fuente": FUENTE,
+            "status": "ok",
+            "razon": freno,
+            "palabras": anotar_palabras(palabras, host),
+            "dominios": [],
+            "truncado": truncado,
+        }
     competitors = http.post(
         COMPETITORS,
         json=[{**cuerpo_base, "limit": limite_dominios}],
-        auth=(login, password),
+        auth=auth,
         timeout=60,
     )
     if competitors.status_code != 200:
