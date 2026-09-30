@@ -216,6 +216,46 @@ def hallazgo_de_labs(registro: dict | None) -> dict | None:
     }
 
 
+BOLSAS = (
+    ("jooble", "Jooble"),
+    ("computrabajo", "Computrabajo"),
+    ("indeed", "Indeed"),
+    ("bebee", "beBee"),
+)
+
+
+def hallazgo_bolsas(registro: dict | None) -> dict | None:
+    """Google agrupa al dominio con bolsas de empleo que sí devolvió Labs."""
+    if not registro or registro.get("status") != "ok":
+        return None
+    presentes = []
+    evidencia = []
+    vistos = set()
+    for item in registro.get("dominios") or []:
+        etiquetas = dominio_de(str(item.get("dominio") or "")).split(".")
+        nombre = next((etiqueta for clave, etiqueta in BOLSAS if clave in etiquetas), "")
+        if not nombre or nombre in vistos:
+            continue
+        vistos.add(nombre)
+        presentes.append(nombre)
+        intersecciones = item.get("intersecciones")
+        if isinstance(intersecciones, int):
+            evidencia.append(f"{item['dominio']} {intersecciones} intersecciones")
+        else:
+            evidencia.append(str(item.get("dominio") or nombre))
+    if not presentes:
+        return None
+    lista = presentes[0] if len(presentes) == 1 else f"{', '.join(presentes[:-1])} y {presentes[-1]}"
+    return {
+        "texto": f"Google lo agrupa con bolsas de empleo: {lista}.",
+        "evidencia": "; ".join(evidencia),
+        "fuente": FUENTE,
+        "fecha": registro.get("fecha") or "sin dato",
+        "nivel": "observado",
+        "consecuencia": "Quien busca el servicio ve bolsas de empleo, no a la agencia.",
+    }
+
+
 def adjuntar(mediciones: dict[str, dict], registros: list[dict]) -> dict[str, dict]:
     """Pega Labs por dominio. El nombre de la empresa no se usa."""
     salida = {dominio: dict(fila) for dominio, fila in mediciones.items()}

@@ -5,6 +5,7 @@ from aura_organic_growth.labs import (
     consultar,
     dominios_de,
     es_red_social,
+    hallazgo_bolsas,
     hallazgo_de_labs,
     leer_saldo,
     mercado_de,
@@ -190,6 +191,27 @@ def test_dive_entra_con_empleo_y_marca_no_con_servicio():
     assert hallazgos_de_medicion({"labs": _dive(), "hallazgos": []}, "2026-09-30")[0]["texto"].startswith(
         "Aparece por empleo y por la marca"
     )
+
+
+def test_dive_queda_agrupado_con_bolsas_de_empleo():
+    registro = {
+        **_dive(),
+        "dominios": [
+            {"dominio": "jooble.org", "intersecciones": 19},
+            {"dominio": "computrabajo.com", "intersecciones": 18},
+            {"dominio": "indeed.com", "intersecciones": 17},
+            {"dominio": "bebee.com", "intersecciones": 15},
+            {"dominio": "instagram.com", "intersecciones": 40},
+        ],
+    }
+    hallazgo = hallazgo_bolsas(registro)
+    assert hallazgo["nivel"] == "observado"
+    assert hallazgo["fuente"] == "DataForSEO Labs"
+    assert hallazgo["texto"] == "Google lo agrupa con bolsas de empleo: Jooble, Computrabajo, Indeed y beBee."
+    assert "instagram" not in hallazgo["evidencia"]
+    textos = [item["texto"] for item in hallazgos_de_medicion({"labs": registro, "hallazgos": []}, "2026-09-30")]
+    assert any(texto.startswith("Aparece por empleo") for texto in textos)
+    assert hallazgo["texto"] in textos
 
 
 def test_labs_se_pega_por_dominio_no_por_nombre():

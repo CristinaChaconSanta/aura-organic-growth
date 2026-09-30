@@ -9,7 +9,8 @@ from __future__ import annotations
 import re
 
 from aura_organic_growth.cruce import contacto_del_dominio, dominio_de, idioma_de
-from aura_organic_growth.labs import hallazgo_de_labs
+from aura_organic_growth.labs import hallazgo_bolsas, hallazgo_de_labs
+from aura_organic_growth.serper import hallazgos_de_busqueda
 
 NIVELES = ("observado", "inferido", "estimado")
 _FECHA = re.compile(r"\d{4}-\d{2}-\d{2}")
@@ -44,16 +45,13 @@ def hallazgos_de_medicion(medicion: dict | None, fecha: str) -> list[dict]:
             "nivel": nivel,
             "consecuencia": str(item.get("consecuencia") or "").strip(),
         })
-    hallazgo = hallazgo_de_labs(medicion.get("labs"))
-    if hallazgo:
-        salida.append({
-            "texto": hallazgo["texto"],
-            "evidencia": hallazgo["evidencia"],
-            "fuente": hallazgo["fuente"],
-            "fecha": hallazgo["fecha"],
-            "nivel": hallazgo["nivel"],
-            "consecuencia": hallazgo["consecuencia"],
-        })
+    for hallazgo in (
+        hallazgo_de_labs(medicion.get("labs")),
+        hallazgo_bolsas(medicion.get("labs")),
+    ):
+        if hallazgo:
+            salida.append(hallazgo)
+    salida.extend(hallazgos_de_busqueda(medicion.get("serper")))
     wayback = medicion.get("wayback") or {}
     detalle = str(wayback.get("detalle") or "").strip()
     if wayback.get("nivel") in NIVELES and detalle:
