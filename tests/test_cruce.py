@@ -11,7 +11,7 @@ def test_terra_no_cruza_con_terralink():
     contactos = [
         {
             "website": "https://terralink.com",
-            "email": "ana@terralink.com",
+            "email": "contacto-a@terralink.com",
             "email_status": "Verified",
             "catchall": "Not Catch-all",
             "nombre": "Ana Terra",
@@ -19,7 +19,7 @@ def test_terra_no_cruza_con_terralink():
         },
         {
             "website": "https://www.terraenergy.io/inicio",
-            "email": "emma@terraenergy.io",
+            "email": "contacto-b@terraenergy.io",
             "email_status": "Verified",
             "catchall": "Not Catch-all",
             "nombre": "Emma Juarez",
@@ -39,7 +39,7 @@ def test_terra_no_cruza_con_terralink():
         hipotesis="ancla dato",
         fecha="2026-09-29",
     )
-    assert filas[0]["contacto"]["email"] == "emma@terraenergy.io"
+    assert filas[0]["contacto"]["email"] == "contacto-b@terraenergy.io"
     assert filas[0]["contacto"]["precaucion"] is None
     assert filas[0]["idioma"] == "es"
     assert filas[0]["borrador"] == ""
@@ -52,7 +52,7 @@ def test_catchall_se_marca_y_el_verificado_gana():
     contactos = [
         {
             "website": "https://outloudmarketing.com",
-            "email": "catch@outloudmarketing.com",
+            "email": "contacto-c@outloudmarketing.com",
             "email_status": "Verified",
             "catchall": "Catch-all",
             "nombre": "Catch All",
@@ -60,7 +60,7 @@ def test_catchall_se_marca_y_el_verificado_gana():
         },
         {
             "website": "https://outloudmarketing.com",
-            "email": "jguizar@outloudmarketing.com",
+            "email": "contacto-d@outloudmarketing.com",
             "email_status": "Verified",
             "catchall": "Not Catch-all",
             "nombre": "Jose Guizar",
@@ -68,7 +68,7 @@ def test_catchall_se_marca_y_el_verificado_gana():
         },
     ]
     elegido = contacto_del_dominio("outloudmarketing.com", contactos)
-    assert elegido["email"] == "jguizar@outloudmarketing.com"
+    assert elegido["email"] == "contacto-d@outloudmarketing.com"
     assert elegido["precaucion"] is None
     assert es_catchall(contactos[0]) is True
 
@@ -76,7 +76,7 @@ def test_catchall_se_marca_y_el_verificado_gana():
 def test_si_solo_hay_catchall_se_usa_con_precaucion():
     elegido = contacto_del_dominio("https://metrowan.cl", [{
         "website": "https://metrowan.cl",
-        "email": "alvaro@metrowan.cl",
+        "email": "contacto-e@metrowan.cl",
         "email_status": "Verified",
         "catchall": "Catch-all",
         "nombre": "Alvaro Valenzuela",
