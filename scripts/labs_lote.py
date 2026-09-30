@@ -11,8 +11,11 @@ import sys
 from datetime import date
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+load_dotenv(ROOT / ".env")
 
 from aura_organic_growth.labs import consultar, hallazgo_de_labs  # noqa: E402
 
