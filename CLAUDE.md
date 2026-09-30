@@ -145,6 +145,9 @@ servicio pagado.
   Los 5 se ordenan por consecuencia: velocidad y errores de todo el sitio
   antes que el detalle de una página. Nunca como hecho: tráfico estimado,
   backlinks totales, ventas perdidas, puntaje GEO.
+- **Cifras estimadas sí entran, rotuladas.** Tráfico o volumen estimado
+  (ej. DataForSEO Labs) se usa con la etiqueta «estimado», su fuente y su
+  fecha, y nivel inferido. Nunca se presenta como medición ni como promesa.
 - **Cada borrador guarda medición.** Hipótesis, tipo de apertura
   (`riesgo` / `oportunidad` / `esfuerzo` / `dato`), llamado a la acción,
   industria, `fecha_envio` (vacía hasta que Cristina envía desde Gmail) y
