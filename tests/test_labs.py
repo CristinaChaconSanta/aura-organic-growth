@@ -214,6 +214,41 @@ def test_dive_queda_agrupado_con_bolsas_de_empleo():
     assert hallazgo["texto"] in textos
 
 
+def test_el_parche_deja_pendiente_la_fila_con_hallazgo():
+    from aura_organic_growth.staging import juntar, parche_pendiente
+
+    medicion = juntar(
+        {},
+        {
+            **_dive(),
+            "dominios": [
+                {"dominio": "jooble.org", "intersecciones": 19},
+                {"dominio": "computrabajo.com", "intersecciones": 18},
+                {"dominio": "indeed.com", "intersecciones": 17},
+                {"dominio": "bebee.com", "intersecciones": 15},
+            ],
+        },
+        {
+            "status": "ok",
+            "consultas": [{
+                "consulta": "agencia de marketing digital en Santiago",
+                "fecha": "2026-09-30",
+                "pais": "Chile",
+                "posicion": "no aparece en el top 10",
+                "dominios": ["otra.cl"],
+                "listas": [],
+            }],
+        },
+    )
+    parche = parche_pendiente(hallazgos_de_medicion(medicion, "2026-09-30"))
+    assert parche["estado"] == "pendiente"
+    textos = [item["texto"] for item in parche["hallazgos"]]
+    assert any(texto.startswith("Aparece por empleo") for texto in textos)
+    assert "Google lo agrupa con bolsas de empleo: Jooble, Computrabajo, Indeed y beBee." in textos
+    assert "En «agencia de marketing digital en Santiago» (Chile, 2026-09-30) no aparece en el top 10." in textos
+    assert parche_pendiente([]) is None
+
+
 def test_labs_se_pega_por_dominio_no_por_nombre():
     mediciones = adjuntar(
         {"terraenergy.io": {"empresa": "Terra"}},

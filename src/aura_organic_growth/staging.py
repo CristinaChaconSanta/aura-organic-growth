@@ -65,6 +65,22 @@ def hallazgos_de_medicion(medicion: dict | None, fecha: str) -> list[dict]:
     return salida
 
 
+def juntar(resumen: dict | None, labs: dict | None, serper: dict | None) -> dict:
+    base = dict(resumen or {})
+    if labs:
+        base["labs"] = labs
+    if serper:
+        base["serper"] = serper
+    return base
+
+
+def parche_pendiente(hallazgos: list[dict]) -> dict | None:
+    """Solo se reescribe una fila que ya tiene al menos un hallazgo."""
+    if not hallazgos:
+        return None
+    return {"hallazgos": hallazgos, "estado": "pendiente"}
+
+
 def fila_staging(
     lead: dict,
     medicion: dict | None,
