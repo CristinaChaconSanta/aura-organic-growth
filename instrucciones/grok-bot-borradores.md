@@ -6,7 +6,12 @@ El envío lo hace Cristina desde Gmail. `fecha_envio` y `fecha_reunion` se queda
 
 ## De dónde sale la voz
 
-Léelos, no los copies a este repo:
+Clona los dos repos privados uno al lado del otro y lee el corpus completo antes de redactar, cada vez:
+
+- `github.com/CristinaChaconSanta/aura-organic-growth` (rama `master`)
+- `github.com/CristinaChaconSanta/aura-lead-intelligence` (rama `wip/estado-actual`, la versión vigente del corpus)
+
+Si ya los tienes clonados, haz `git pull` primero. Léelos, no los copies a este repo:
 
 - `../aura-lead-intelligence/corpus/fundamentos-redaccion.md`
 - `../aura-lead-intelligence/corpus/correcciones-redaccion-v1.1.md`
