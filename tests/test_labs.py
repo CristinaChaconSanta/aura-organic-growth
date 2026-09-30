@@ -1,6 +1,7 @@
 from datetime import date
 
-from aura_organic_growth.labs import consultar, dominios_de, es_red_social, mercado_de, palabras_de
+from aura_organic_growth.labs import consultar, dominios_de, es_red_social, hallazgo_de_labs, mercado_de, palabras_de
+from aura_organic_growth.staging import hallazgos_de_medicion
 
 
 def _respuesta(items, total=None):
@@ -108,3 +109,39 @@ def test_consulta_chile_en_los_dos_endpoints(monkeypatch):
     assert resultado["status"] == "ok"
     assert resultado["palabras"][0]["palabra"] == "dive"
     assert resultado["dominios"] == [{"dominio": "agencia.cl", "intersecciones": 2}]
+
+
+def _dive():
+    return {
+        "status": "ok",
+        "dominio": "dive.cl",
+        "fecha": "2026-09-30",
+        "fuente": "DataForSEO Labs",
+        "truncado": False,
+        "palabras": [
+            {"palabra": "dive", "posicion": 2},
+            {"palabra": "trabajo arte", "posicion": 12},
+            {"palabra": "director de arte", "posicion": 2},
+            {"palabra": "cpm", "posicion": 10},
+        ],
+    }
+
+
+def test_dive_entra_con_empleo_y_marca_no_con_servicio():
+    hallazgo = hallazgo_de_labs(_dive())
+    assert hallazgo["nivel"] == "inferido"
+    assert hallazgo["fuente"] == "DataForSEO Labs"
+    assert hallazgo["fecha"] == "2026-09-30"
+    assert "empleo" in hallazgo["texto"]
+    assert "marca" in hallazgo["texto"]
+    assert "no por servicios de agencia" in hallazgo["texto"]
+    assert "«dive» (posición 2)" in hallazgo["texto"]
+    assert "«trabajo arte» (posición 12)" in hallazgo["texto"]
+    assert "estimado" not in hallazgo["texto"].casefold()
+    assert hallazgo_de_labs({
+        **_dive(),
+        "palabras": _dive()["palabras"] + [{"palabra": "agencia de marketing", "posicion": 4}],
+    }) is None
+    assert hallazgos_de_medicion({"labs": _dive(), "hallazgos": []}, "2026-09-30")[0]["texto"].startswith(
+        "Aparece por empleo y por la marca"
+    )

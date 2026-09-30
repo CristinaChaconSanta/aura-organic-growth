@@ -113,6 +113,83 @@ def dominios_de(data: dict, dominio_propio: str) -> tuple[list[dict], str | None
     return vistos, None
 
 
+EMPLEO = frozenset({
+    "empleo", "empleos", "trabalho", "trabalhos", "trabajar", "trabaje",
+    "trabajo", "trabajos", "vacante", "vacantes", "vaga", "vagas",
+    "emprego", "empregos", "postula", "postular", "reclutamiento",
+    "trabalhe", "trabalhar", "creator", "creador", "creadores",
+    "director", "direccion", "editor", "manager",
+})
+SERVICIO = frozenset({
+    "agencia", "agencias", "publicidad", "publicidade", "seo", "sem",
+    "branding", "marketing",
+})
+
+
+def _tokens(texto: str) -> set[str]:
+    return {plano(token) for token in _TOKEN.findall(texto or "")}
+
+
+def marcas_de(dominio: str) -> set[str]:
+    etiquetas = dominio_de(dominio).split(".")
+    return {plano(etiqueta) for etiqueta in etiquetas if len(plano(etiqueta)) >= 3}
+
+
+def anotar_palabras(palabras: list[dict], dominio: str) -> list[dict]:
+    marcas = marcas_de(dominio)
+    anotadas = []
+    for palabra in palabras:
+        tokens = _tokens(str(palabra.get("palabra") or ""))
+        tipos = []
+        if tokens & EMPLEO:
+            tipos.append("empleo")
+        if tokens & marcas:
+            tipos.append("marca")
+        if tokens & SERVICIO:
+            tipos.append("servicio")
+        anotadas.append({**palabra, "tipos": tipos})
+    return anotadas
+
+
+def _citas(palabras: list[dict]) -> str:
+    return ", ".join(f"«{item['palabra']}» (posición {item['posicion']})" for item in palabras[:3])
+
+
+def hallazgo_de_labs(registro: dict | None) -> dict | None:
+    """Solo si lo devuelto es empleo y marca, y no hay un servicio de agencia."""
+    if not registro or registro.get("status") != "ok":
+        return None
+    palabras = anotar_palabras(registro.get("palabras") or [], str(registro.get("dominio") or ""))
+    if not palabras:
+        return None
+    if any("servicio" in item["tipos"] for item in palabras):
+        return None
+    marcas = [item for item in palabras if "marca" in item["tipos"]]
+    empleos = [item for item in palabras if "empleo" in item["tipos"]]
+    if not marcas or not empleos:
+        return None
+    apertura = (
+        "Entre las palabras mejor posicionadas que devolvió la fuente hay empleo y marca, no servicios de agencia."
+        if registro.get("truncado")
+        else "Aparece por empleo y por la marca, no por servicios de agencia."
+    )
+    texto = f"{apertura} Marca: {_citas(marcas)}. Empleo: {_citas(empleos)}."
+    evidencia = "; ".join(
+        f"{item['palabra']} posición {item['posicion']} ({', '.join(item['tipos']) or 'otra'})"
+        for item in palabras
+    )
+    return {
+        "texto": texto,
+        "evidencia": evidencia,
+        "fuente": FUENTE,
+        "fecha": registro.get("fecha") or "sin dato",
+        "nivel": "inferido",
+        "alcance": "sitio",
+        "tipo": "palabras",
+        "consecuencia": "Quien busca una agencia no llega con estas palabras.",
+    }
+
+
 def consultar(
     dominio: str,
     pais: str,
@@ -164,7 +241,7 @@ def consultar(
         "fecha": fecha,
         "fuente": FUENTE,
         "status": "ok",
-        "palabras": palabras,
+        "palabras": anotar_palabras(palabras, host),
         "dominios": dominios,
         "truncado": truncado,
     }
