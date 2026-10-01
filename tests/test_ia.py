@@ -252,3 +252,41 @@ def test_los_hallazgos_de_ia_van_primero_y_sin_promesas():
     assert [h["tipo"] for h in orden] == ["ia_prueba", "ia_fuentes", "velocidad", "error"]
     for h in ia:
         assert "garant" not in (h["texto"] + h["consecuencia"]).casefold()
+
+
+# --- Staging: la capa de IA entra primero ---------------------------------
+
+from aura_organic_growth.staging import hallazgos_de_medicion, juntar, parche_pendiente  # noqa: E402
+
+
+def test_staging_pone_la_ia_antes_que_velocidad_sin_duplicar():
+    ia = _registro(_motor("ChatGPT", False, ["Bigbuda"]))
+    legibilidad = {
+        "url": "https://dive.cl", "fecha": "2026-09-30", "robots": {"GPTBot": "bloqueado"},
+        "llms_txt": False, "schema_tipos": [],
+    }
+    medicion = {
+        "empresa": "DIVE", "pais": "Chile", "ia": ia, "legibilidad_ia": legibilidad,
+        "hallazgos": [
+            {"texto": "Carga lento.", "tipo": "velocidad", "nivel": "observado", "consecuencia": "Espera.", "fecha": "2026-09-29"},
+            {"texto": "viejo", "tipo": "ia_prueba", "nivel": "observado", "consecuencia": "x"},
+        ],
+    }
+    hallazgos = hallazgos_de_medicion(medicion, "2026-09-29")
+    textos = [h["texto"] for h in hallazgos]
+    assert textos[0].startswith("Le preguntamos a ChatGPT")
+    assert textos[1].startswith("Para responder, ChatGPT")
+    assert textos[2].startswith("El archivo que le dice a los robots")
+    assert textos[3].startswith("El sitio no tiene un archivo llms.txt")
+    assert textos[4] == "Carga lento."
+    assert "viejo" not in textos
+    assert set(hallazgos[0]) == {"texto", "evidencia", "fuente", "fecha", "nivel", "consecuencia"}
+    assert parche_pendiente(hallazgos)["estado"] == "pendiente"
+
+
+def test_el_refresco_lleva_la_ia_aunque_la_madurez_sea_baja():
+    resumen = {"empresa": "DIVE", "pais": "Chile", "madurez": "baja", "ruta": "derivar a landing",
+               "ia": _registro(_motor("ChatGPT", False, ["Bigbuda"]))}
+    hallazgos = hallazgos_de_medicion(juntar(resumen, None, None), "2026-09-30")
+    assert len(hallazgos) == 2 and hallazgos[0]["nivel"] == "observado"
+    assert hallazgos_de_medicion({"empresa": "X", "ia": {"status": "sin dato", "motores": []}}, "2026-09-30") == []

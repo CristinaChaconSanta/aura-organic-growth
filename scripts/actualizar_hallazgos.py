@@ -1,7 +1,9 @@
 """Actualiza hallazgos en organic_borradores. No redacta y no envía.
 
-Labs se lee del archivo ya guardado. Serper corre solo cuando hay servicio
-y ciudad observados. En este lote el único es dive.cl.
+La prueba con IA y la lectura del sitio para IA salen del último resumen
+del lote (`correr_lote.py`) y entran primero a los hallazgos. Labs se lee
+del archivo ya guardado. Serper corre solo cuando hay servicio y ciudad
+observados (ver `observados.py`).
 """
 
 from __future__ import annotations

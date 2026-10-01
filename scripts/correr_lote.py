@@ -1,5 +1,7 @@
 """Selecciona el lote, clasifica la madurez y mide solo media o alta.
 
+Primer paso de cada lead con web: la prueba en vivo con IA y la lectura del
+sitio para IA, aunque la madurez sea baja. Después, velocidad y búsquedas.
 Guarda país, place_id y el problema más grave. No guarda contenido de Places.
 """
 
@@ -24,8 +26,12 @@ from aura_organic_growth.competidores import comparar_velocidad, repetidos  # no
 from aura_organic_growth.crux import campo, hallazgo_velocidad  # noqa: E402
 from aura_organic_growth.entidad import entidad  # noqa: E402
 from aura_organic_growth.hallazgos import cinco, problema_mas_grave  # noqa: E402
+from aura_organic_growth.ia import consultar as consultar_ia, hallazgos_de_ia  # noqa: E402
+from aura_organic_growth.legibilidad_ia import hallazgos_de_legibilidad, medir as medir_legibilidad  # noqa: E402
 from aura_organic_growth.lote import descargar_fichas, guardar, seleccionar  # noqa: E402
+from aura_organic_growth.cruce import idioma_de  # noqa: E402
 from aura_organic_growth.madurez import clasificar  # noqa: E402
+from aura_organic_growth.observados import de as observado_de  # noqa: E402
 from aura_organic_growth.paginas import faltan  # noqa: E402
 from aura_organic_growth.places_ficha import ficha_google, ids_por_categoria, para_guardar  # noqa: E402
 from aura_organic_growth.senales import pauta_activa, subdominios_nuevos, vacante, wayback  # noqa: E402
@@ -99,11 +105,35 @@ def _seguro(llamada, fallo: dict) -> dict:
         return fallo
 
 
+def _paso_ia(lead: dict, url: str, html: str | None) -> tuple[dict, dict, list[dict]]:
+    """Primer paso de la medición: prueba con IA y lectura del sitio para IA. Sin web no corre."""
+    dominio = urlparse(_origen(url, lead["dominio"])).netloc.removeprefix("www.")
+    observado = observado_de(dominio) or {}
+    ia = _seguro(
+        lambda: consultar_ia(
+            observado.get("servicios") or [],
+            ciudad=observado.get("ciudad") or "",
+            pais=lead["pais"],
+            dominio=dominio,
+            empresa=lead["empresa"],
+        ),
+        {"dominio": dominio, "status": "sin dato", "razon": "sin respuesta", "motores": []},
+    )
+    legibilidad = _seguro(
+        lambda: medir_legibilidad(url, html=html),
+        {"url": "sin dato", "fecha": HOY, "robots": {}, "llms_txt": None, "render": "no determinable"},
+    )
+    idioma = "pt-BR" if idioma_de(lead["pais"]) == "pt-BR" else "es"
+    hallazgos = hallazgos_de_ia(ia, empresa=lead["empresa"]) + hallazgos_de_legibilidad(legibilidad, idioma=idioma)
+    return ia, legibilidad, hallazgos
+
+
 def _medir(lead: dict) -> dict:
     url = lead["url"] or _origen("", lead["dominio"])
     estado, html = _portada(url)
     tiene_web = bool(url)
-    madurez = clasificar(html if estado else None, tiene_web=tiene_web)
+    ia, legibilidad, hallazgos_ia = _paso_ia(lead, url, html) if tiene_web else ({}, {}, [])
+    madurez = clasificar(html if estado else None, tiene_web=tiene_web, llms_txt=legibilidad.get("llms_txt"))
     fila = {
         "empresa": lead["empresa"],
         "pais": lead["pais"],
@@ -113,13 +143,16 @@ def _medir(lead: dict) -> dict:
         "ruta": madurez["ruta"],
         "evidencia_madurez": madurez["evidencia"],
     }
+    if tiene_web:
+        fila.update({"ia": ia, "legibilidad_ia": legibilidad, "hallazgos": cinco(hallazgos_ia)})
     if madurez["ruta"] != "auditar":
+        # Madurez baja sigue derivando a landing; la prueba con IA ya quedó guardada.
         fila["problema"] = (
             "derivar a landing" if madurez["ruta"] == "derivar a landing" else "sin auditar: la portada no respondió"
         )
         return fila
     origen = _origen(url, lead["dominio"])
-    hallazgos = []
+    hallazgos = list(hallazgos_ia)
     if estado and estado >= 400:
         hallazgos.append({
             "texto": f"La portada respondió HTTP {estado} el {HOY}.",

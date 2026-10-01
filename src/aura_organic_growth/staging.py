@@ -9,7 +9,10 @@ from __future__ import annotations
 import re
 
 from aura_organic_growth.cruce import contacto_del_dominio, dominio_de, idioma_de
+from aura_organic_growth.hallazgos import clave_de_orden
+from aura_organic_growth.ia import hallazgos_de_ia
 from aura_organic_growth.labs import hallazgo_bolsas, hallazgo_de_labs
+from aura_organic_growth.legibilidad_ia import hallazgos_de_legibilidad
 from aura_organic_growth.serper import hallazgos_de_busqueda
 
 NIVELES = ("observado", "inferido", "estimado")
@@ -21,12 +24,31 @@ def _fecha_en(texto: str, respaldo: str) -> str:
     return hallada.group(0) if hallada else respaldo
 
 
+def _de_staging(item: dict) -> dict:
+    """Misma forma que el resto: sin las claves de orden interno."""
+    return {k: item[k] for k in ("texto", "evidencia", "fuente", "fecha", "nivel", "consecuencia") if k in item}
+
+
+def hallazgos_de_ia_y_legibilidad(medicion: dict) -> list[dict]:
+    """La prueba con IA y la lectura del sitio para IA, en el orden de hallazgos.ORDEN_IA."""
+    pais = str(medicion.get("pais") or "")
+    idioma = "pt-BR" if idioma_de(pais) == "pt-BR" else "es"
+    crudos = hallazgos_de_ia(medicion.get("ia"), empresa=str(medicion.get("empresa") or "")) + hallazgos_de_legibilidad(
+        medicion.get("legibilidad_ia"), idioma=idioma
+    )
+    crudos.sort(key=clave_de_orden)
+    return [_de_staging(item) for item in crudos]
+
+
 def hallazgos_de_medicion(medicion: dict | None, fecha: str) -> list[dict]:
+    """Los hallazgos de IA van primero. Los demás siguen en su orden de siempre."""
     if not medicion:
         return []
     velocidad = medicion.get("velocidad") or {}
-    salida = []
+    salida = hallazgos_de_ia_y_legibilidad(medicion)
     for item in medicion.get("hallazgos") or []:
+        if str(item.get("tipo") or "").startswith("ia_"):
+            continue  # se rehacen arriba desde el registro, sin duplicar
         nivel = item.get("nivel")
         texto = str(item.get("texto") or "").strip()
         if nivel not in NIVELES or not texto:

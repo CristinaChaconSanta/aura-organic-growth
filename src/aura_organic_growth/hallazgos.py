@@ -55,6 +55,9 @@ def cinco(hallazgos: list[dict]) -> list[dict]:
     return sorted(validos, key=_clave)[:5]
 
 
+clave_de_orden = _clave
+
+
 def problema_mas_grave(hallazgos: list[dict]) -> str:
     orden = cinco(hallazgos)
     if not orden:
