@@ -22,7 +22,7 @@ The batch measured only speed and Google searches. The AI layer (axiom: every bu
 
 ## Tasks
 - [x] T1 AI live test module + tests (ia.py, observados.py; tests/test_ia.py)
-- [ ] T2 AI legibility module + tests
+- [x] T2 AI legibility module + tests (legibilidad_ia.py, render.paginas_renderizadas; tests/test_legibilidad_ia.py)
 - [ ] T3 Findings: AI first, plain language; maturity fix + tests
 - [ ] T4 Wire into correr_lote and staging refresh
 - [ ] T5 Validator jargon rule + tests; Grok instructions; CLAUDE.md
@@ -35,3 +35,4 @@ Delegated direct (writer trigger: 2+ non-trivial files). Branch: master, as the 
 Created 2026-09-30.
 
 - T1 done 2026-09-30: ia.py asks ChatGPT and Gemini via LLM Scraper with balance guard; servicio/ciudad observados moved to observados.py. Route: delegated direct (single writer).
+- T2 done 2026-09-30: robots for 7 AI bots, llms.txt, words without JS vs rendered, JSON-LD types; no render => 'no determinable'.

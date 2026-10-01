@@ -95,3 +95,29 @@ def _una(page, url: str) -> dict:
         "ausencias_render": ausencias,
         "error": error,
     }
+
+
+def paginas_renderizadas(urls: list[str]) -> dict[str, dict | None]:
+    """Palabras visibles y HTML ya renderizado. None si Chrome o la página no responden."""
+    salida: dict[str, dict | None] = {url: None for url in urls}
+    try:
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(channel="chrome", headless=True)
+            page = browser.new_page()
+            for url in urls:
+                try:
+                    page.goto(url, wait_until="domcontentloaded", timeout=25000)
+                    try:
+                        page.wait_for_load_state("networkidle", timeout=8000)
+                    except Exception:  # noqa: BLE001
+                        pass
+                    texto = page.locator("body").inner_text(timeout=5000)
+                    salida[url] = {"palabras": len(re.findall(r"\w+", texto)), "html": page.content()}
+                except Exception:  # noqa: BLE001
+                    salida[url] = None
+            browser.close()
+    except Exception:  # noqa: BLE001
+        return {url: None for url in urls}
+    return salida
