@@ -190,26 +190,62 @@ def fuentes_citadas(citadas: list[dict]) -> list[str]:
     return vistos
 
 
-def recomendados_de(markdown: str, *, pregunta: str = "") -> list[str]:
-    """Negocios que la respuesta destaca en negrita. Es una extracción aproximada."""
+_ENLACE_EN_TEXTO = re.compile(r"\[[^\]]*\]\([^)]*\)")
+_CORTE_NOMBRE = re.compile(r"\s[–—|-]\s|\s\|\s|:")
+
+
+def _nombre_limpio(crudo: str) -> str:
+    nombre = re.sub(r"\([^)]*\)", "", crudo)
+    nombre = _CORTE_NOMBRE.split(nombre)[0]
+    return re.sub(r"^\d+[.)]\s*", "", nombre).strip(" *_.,;:\"'«»")
+
+
+def _aceptable(nombre: str, vistos: set[str], pregunta: str) -> bool:
+    clave = plano(nombre)
+    return bool(
+        nombre and clave not in vistos and clave not in GENERICOS and len(nombre.split()) <= 6
+        and not nombre.endswith("?") and clave != plano(pregunta) and (nombre[0].isupper() or "." in nombre)
+    )
+
+
+def entidades_de(entidades: list | None) -> list[str]:
+    """Negocios que la propia respuesta marca como entidad (ChatGPT: brand_entities)."""
     salida: list[str] = []
     vistos: set[str] = set()
-    for crudo in _NEGRITA.findall(markdown or ""):
-        nombre = re.sub(r"\([^)]*\)", "", crudo)
-        nombre = re.split(r"\s[–—-]\s|:", nombre)[0]
-        nombre = re.sub(r"^\d+[.)]\s*", "", nombre).strip(" *_.,;:\"'«»")
-        clave = plano(nombre)
-        if not nombre or clave in vistos or clave in GENERICOS or len(nombre.split()) > 6:
+    for item in entidades or []:
+        if not isinstance(item, dict):
             continue
-        if nombre.endswith("?") or clave == plano(pregunta):
+        nombre = _nombre_limpio(str(item.get("title") or ""))
+        if _aceptable(nombre, vistos, ""):
+            vistos.add(plano(nombre))
+            salida.append(nombre)
+    return salida[:TOPE_RECOMENDADOS]
+
+
+def recomendados_de(markdown: str, *, pregunta: str = "") -> list[str]:
+    """Negocios en negrita dentro de una lista o un título. Extracción aproximada.
+
+    Se quitan los enlaces antes de leer la negrita (Gemini los mete dentro) y se
+    descartan las etiquetas («Por qué destaca:», «**SEO**: ...»).
+    """
+    salida: list[str] = []
+    vistos: set[str] = set()
+    for linea in _ENLACE_EN_TEXTO.sub("", markdown or "").splitlines():
+        inicio = re.match(r"\s*(?:([-*•])|\d+[.)]|#{1,4})\s", linea)
+        if not inicio:
             continue
-        if not (nombre[0].isupper() or "." in nombre):
-            continue
-        vistos.add(clave)
-        salida.append(nombre)
+        viñeta = bool(inicio.group(1))  # «- **Etiqueta**: texto» es una etiqueta; «2. **Nombre**: texto» no
+        for hallado in _NEGRITA.finditer(linea):
+            crudo = hallado.group(1)
+            if crudo.rstrip().endswith(":") or (viñeta and linea[hallado.end():].startswith(":")):
+                continue
+            nombre = _nombre_limpio(crudo)
+            if _aceptable(nombre, vistos, pregunta):
+                vistos.add(plano(nombre))
+                salida.append(nombre)
         if len(salida) >= TOPE_RECOMENDADOS:
             break
-    return salida
+    return salida[:TOPE_RECOMENDADOS]
 
 
 def marcas_de(dominio: str, empresa: str = "") -> set[str]:
@@ -255,11 +291,11 @@ def _vacio_motor(motor: str, base: dict, razon: str) -> dict:
     }
 
 
-def _respuesta(data: dict) -> tuple[str, list, float | None, str | None]:
+def _respuesta(data: dict) -> tuple[str, list, float | None, str | None, list]:
     """Texto de la respuesta, fuentes extra, costo y error. Todo campo ausente es «sin dato»."""
     resultado, error = tarea_de(data)
     if error:
-        return "", [], None, error
+        return "", [], None, error, []
     tarea = ((data or {}).get("tasks") or [{}])[0]
     costo = tarea.get("cost", (data or {}).get("cost"))
     costo = float(costo) if isinstance(costo, (int, float)) else None
@@ -271,9 +307,10 @@ def _respuesta(data: dict) -> tuple[str, list, float | None, str | None]:
                 texto = candidato
                 break
     if not isinstance(texto, str) or not texto.strip():
-        return "", [], costo, "respuesta sin texto"
+        return "", [], costo, "respuesta sin texto", []
     extra = resultado.get("sources") or resultado.get("references") or []
-    return texto, extra if isinstance(extra, list) else [], costo, None
+    entidades = resultado.get("brand_entities")
+    return texto, extra if isinstance(extra, list) else [], costo, None, entidades if isinstance(entidades, list) else []
 
 
 def _revisar_lista(http, item: dict, dominio: str, empresa: str) -> dict:
@@ -309,12 +346,14 @@ def _consultar_motor(http, auth, motor: str, base: dict, dominio: str, empresa: 
         return _vacio_motor(motor, base, "sin respuesta")
     if resp.status_code != 200:
         return _vacio_motor(motor, base, f"http_{resp.status_code}")
-    texto, extra, costo, error = _respuesta(resp.json())
+    texto, extra, costo, error, entidades = _respuesta(resp.json())
     if error:
         fila = _vacio_motor(motor, base, error)
         fila["costo_usd"] = costo
         return fila
     citadas = urls_citadas(texto, extra)
+    por_entidad = entidades_de(entidades)
+    recomendados = por_entidad or recomendados_de(texto, pregunta=base["pregunta"])
     return {
         "pregunta": base["pregunta"],
         "motor": motor,
@@ -322,7 +361,9 @@ def _consultar_motor(http, auth, motor: str, base: dict, dominio: str, empresa: 
         "pais": base["pais"],
         "idioma": base["idioma"],
         "menciona_lead": menciona(texto, dominio, empresa),
-        "recomendados": recomendados_de(texto, pregunta=base["pregunta"]),
+        "recomendados": recomendados,
+        "recomendados_origen": "entidades de la respuesta" if por_entidad else "negrita en listas",
+        "respuesta": texto[:4000],
         "fuentes_citadas": fuentes_citadas(citadas),
         "urls_citadas": citadas,
         "listas_revisadas": [],

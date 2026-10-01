@@ -337,3 +337,52 @@ def test_el_refresco_lleva_la_ia_aunque_la_madurez_sea_baja():
     hallazgos = hallazgos_de_medicion(juntar(resumen, None, None), "2026-09-30")
     assert len(hallazgos) == 2 and hallazgos[0]["nivel"] == "observado"
     assert hallazgos_de_medicion({"empresa": "X", "ia": {"status": "sin dato", "motores": []}}, "2026-09-30") == []
+
+
+# --- Forma real de las respuestas (verificada en vivo el 2026-09-30) -----------
+
+from aura_organic_growth.ia import entidades_de  # noqa: E402
+
+CHATGPT_VIVO = {"tasks": [{"status_code": 20000, "cost": 0.004, "result": [{
+    "markdown": (
+        "Sí. Revisé opciones.\n\n"
+        "- **Bigbuda – Agencia de Marketing Digital y CRO** — Las Condes. Tiene **SEO, Google/Meta Ads**. "
+        "[vitria.cl](https://vitria.cl/agencias?utm_source=chatgpt.com)\n"
+        "- **Onza | Agencia de marketing digital en Santiago** — Santiago Centro.\n"
+        "- **SEO y Paid Media**: servicios.\n"
+    ),
+    "brand_entities": [
+        {"type": "chat_gpt_brand_entity", "title": "Bigbuda – Agencia de Marketing Digital y CRO", "urls": []},
+        {"type": "chat_gpt_brand_entity", "title": "Onza | Agencia de marketing digital en Santiago"},
+    ],
+    "sources": [{"type": "chat_gpt_source", "domain": "vitria.cl", "url": "https://vitria.cl/x?utm_source=chatgpt.com", "title": "Agencias"}],
+}]}]}
+GEMINI_VIVO = {"tasks": [{"status_code": 20000, "cost": 0.004, "result": [{
+    "markdown": (
+        "Aquí tienes una selección.\n\n"
+        "### 1. Para E-commerce y Analítica: **Bigbuda[presse.cl](https://presse.cl/mejores/#:~:text=2.%20Bigbuda)**\n\n"
+        "* **Por qué destaca:[presse.cl](https://presse.cl/mejores/#:~:text=x)** Es referente.\n"
+        "* **Ideal si:** buscas CRO.\n"
+        "### 2. Para marca: **Cebra**\n"
+    ),
+    "sources": [{"type": "gemini_source", "domain": "presse.cl", "url": "https://presse.cl/mejores/#:~:text=2.%20Bigbuda", "title": "Presse"}],
+}]}]}
+
+
+def test_chatgpt_vivo_usa_las_entidades_y_gemini_la_negrita_sin_enlaces(monkeypatch):
+    _credenciales(monkeypatch)
+    http = Http(respuestas={"chat_gpt": Resp(CHATGPT_VIVO), "gemini": Resp(GEMINI_VIVO)})
+    r = consultar(["agencia"], ciudad="Santiago", pais="Chile", dominio="dive.cl", empresa="DIVE", session=http, hoy=HOY, revisar_listas=False)
+    chatgpt, gemini = r["motores"]
+    assert chatgpt["recomendados"] == ["Bigbuda", "Onza"]
+    assert chatgpt["recomendados_origen"] == "entidades de la respuesta"
+    assert chatgpt["fuentes_citadas"] == ["vitria.cl"]
+    assert gemini["recomendados"] == ["Bigbuda", "Cebra"]
+    assert gemini["fuentes_citadas"] == ["presse.cl"]
+    assert gemini["urls_citadas"][0]["url"] == "https://presse.cl/mejores/"
+    assert gemini["respuesta"].startswith("Aquí tienes")
+
+
+def test_entidades_ignoran_basura_y_duplicados():
+    assert entidades_de(None) == []
+    assert entidades_de([{"title": "Bigbuda – X"}, {"title": "bigbuda | Y"}, "x", {"title": ""}]) == ["Bigbuda"]
