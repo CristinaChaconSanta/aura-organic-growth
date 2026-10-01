@@ -343,3 +343,9 @@ def consultar(
         "dominios": dominios,
         "truncado": truncado,
     }
+
+
+# Nombres públicos para otros módulos que usan DataForSEO con el mismo freno de saldo.
+freno_de_saldo = _freno
+credenciales = _credenciales
+tarea_de = _tarea

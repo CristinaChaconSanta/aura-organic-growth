@@ -18,19 +18,10 @@ sys.path.insert(0, str(ROOT / "src"))
 load_dotenv(ROOT / ".env")
 
 from aura_organic_growth.cruce import dominio_de  # noqa: E402
+from aura_organic_growth.observados import de as observado_de  # noqa: E402
 from aura_organic_growth.serper import buscar  # noqa: E402
 from aura_organic_growth.staging import hallazgos_de_medicion, juntar, parche_pendiente  # noqa: E402
 from aura_organic_growth.supabase_rest import pedir  # noqa: E402
-
-# Servicio y ciudad observados por Cristina para este lote. No se infieren
-# de la industria de Apollo.
-OBSERVADOS = {
-    "dive.cl": {
-        "servicios": ["agencia de marketing digital"],
-        "ciudad": "Santiago",
-    },
-}
-
 
 def _por_dominio(filas: list[dict]) -> dict[str, dict]:
     return {dominio_de(str(fila.get("dominio") or "")): fila for fila in filas if fila.get("dominio")}
@@ -67,7 +58,7 @@ def _serper(seleccion: list[dict], hoy: date) -> list[dict]:
     registros = []
     for lead in seleccion:
         dominio = dominio_de(str(lead.get("dominio") or ""))
-        observado = OBSERVADOS.get(dominio)
+        observado = observado_de(dominio)
         if not observado:
             registros.append({
                 "dominio": dominio,
