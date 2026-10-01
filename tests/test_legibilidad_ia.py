@@ -127,3 +127,48 @@ def test_medir_baja_la_portada_si_no_se_la_dan():
     r = medir("x.cl", session=http, renderizador=lambda urls: {}, hoy=HOY)
     assert r["palabras_sin_js"] == 3 and r["schema_tipos"][0] == "Organization"
     assert medir("", session=http, hoy=HOY)["url"] == "sin dato"
+
+
+# --- Hallazgos de legibilidad ---------------------------------------------
+
+from aura_organic_growth.legibilidad_ia import hallazgos_de_legibilidad  # noqa: E402
+
+
+def _registro(**cambios):
+    base = {
+        "url": "https://frescofrigo.com", "fecha": "2026-09-30", "robots": {}, "llms_txt": None,
+        "palabras_sin_js": None, "palabras_con_js": None, "aparece_solo_con_js": None, "schema_tipos": [],
+    }
+    return {**base, **cambios}
+
+
+def test_palabras_sin_js_solo_si_se_midieron_las_dos():
+    medido = hallazgos_de_legibilidad(_registro(palabras_sin_js=8, palabras_con_js=420, aparece_solo_con_js=True))
+    assert medido[0]["texto"].startswith("La portada muestra 8 palabras a quien no ejecuta JavaScript")
+    assert "aparece solo con JavaScript" in medido[0]["texto"]
+    assert "no ejecutan JavaScript" in medido[0]["consecuencia"]
+    assert hallazgos_de_legibilidad(_registro(palabras_sin_js=8)) == []
+    assert hallazgos_de_legibilidad(_registro(palabras_sin_js=254, palabras_con_js=260, aparece_solo_con_js=False)) == []
+
+
+def test_robots_bloqueados_se_nombran_por_asistente():
+    h = hallazgos_de_legibilidad(_registro(robots={"GPTBot": "bloqueado", "OAI-SearchBot": "bloqueado", "ClaudeBot": "permitido"}))
+    assert h[0]["texto"] == "El archivo que le dice a los robots qué pueden leer bloquea a ChatGPT."
+    assert "GPTBot, OAI-SearchBot" in h[0]["evidencia"]
+    assert hallazgos_de_legibilidad(_registro(robots={"GPTBot": "permitido"})) == []
+
+
+def test_llms_txt_se_informa_sin_prometer_citas():
+    for valor, esperado in ((True, "tiene un archivo llms.txt"), (False, "no tiene un archivo llms.txt")):
+        (h,) = hallazgos_de_legibilidad(_registro(llms_txt=valor))
+        assert esperado in h["texto"]
+        assert "no garantiza" in h["consecuencia"]
+    assert hallazgos_de_legibilidad(_registro(llms_txt=None)) == []
+
+
+def test_datos_estructurados_solo_si_los_hay_y_sin_jerga():
+    (h,) = hallazgos_de_legibilidad(_registro(schema_tipos=["Organization", "FAQPage"]))
+    assert h["texto"] == "Las páginas declaran datos estructurados de tipo Organization y FAQPage."
+    assert "schema" not in h["texto"].casefold()
+    assert hallazgos_de_legibilidad(_registro(schema_tipos=[])) == []
+    assert hallazgos_de_legibilidad(None) == []

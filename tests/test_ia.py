@@ -178,3 +178,77 @@ def test_revisa_la_lista_citada_y_solo_afirma_con_pagina_real(monkeypatch):
     listas = {i["dominio"]: i["aparece"] for i in r["motores"][0]["listas_revisadas"]}
     assert listas == {"sortlist.com": False, "clutch.co": None}
     assert r["motores"][1]["listas_revisadas"] == []
+
+
+# --- Hallazgos de la prueba con IA ---------------------------------------
+
+from aura_organic_growth.hallazgos import cinco  # noqa: E402
+from aura_organic_growth.ia import hallazgos_de_ia  # noqa: E402
+
+PREGUNTA = "¿Qué agencia de marketing digital me recomiendas en Santiago de Chile?"
+
+
+def _motor(motor, menciona, recomendados, fuentes=("sortlist.com", "clutch.co"), listas=()):
+    return {
+        "motor": motor, "status": "ok", "nivel": "observado", "idioma": "es",
+        "menciona_lead": menciona, "recomendados": list(recomendados),
+        "fuentes_citadas": list(fuentes), "listas_revisadas": list(listas),
+    }
+
+
+def _registro(*motores, idioma="es"):
+    return {
+        "status": "ok", "idioma": idioma, "empresa": "DIVE", "dominio": "dive.cl", "pregunta": PREGUNTA,
+        "fecha": "2026-09-30", "pais": "Chile", "motores": list(motores),
+    }
+
+
+def test_hallazgo_dive_no_mencionado_nombra_a_la_competencia():
+    primero, segundo = hallazgos_de_ia(_registro(_motor("ChatGPT", False, ["Bigbuda", "LaGencia", "Urban Marketing"])))
+    assert primero["texto"] == (
+        f"Le preguntamos a ChatGPT «{PREGUNTA}» y recomendó a Bigbuda, LaGencia y Urban Marketing. "
+        "No mencionó a DIVE."
+    )
+    assert primero["consecuencia"] == "Quien le pregunta a una IA por este servicio recibe a la competencia."
+    assert (primero["nivel"], primero["tipo"], primero["alcance"]) == ("observado", "ia_prueba", "sitio")
+    assert primero["fecha"] == "2026-09-30"
+    assert segundo["tipo"] == "ia_fuentes"
+    assert segundo["texto"] == "Para responder, ChatGPT se apoyó en sortlist.com y clutch.co."
+
+
+def test_dos_motores_en_un_solo_hallazgo():
+    h = hallazgos_de_ia(_registro(_motor("ChatGPT", False, ["Bigbuda"]), _motor("Gemini", True, ["DIVE", "Otra"])))
+    assert h[0]["texto"].startswith(f"Le preguntamos a ChatGPT y a Gemini «{PREGUNTA}».")
+    assert h[0]["texto"].endswith("Gemini mencionó a DIVE; ChatGPT no.")
+    assert "no una garantía" in h[0]["consecuencia"]
+
+
+def test_ausencia_en_la_lista_solo_si_se_reviso_la_pagina():
+    sin_revisar = hallazgos_de_ia(_registro(_motor("ChatGPT", False, ["A"])))[1]
+    assert "no aparece" not in sin_revisar["texto"]
+    revisada = {"url": "https://sortlist.com/x", "dominio": "sortlist.com", "aparece": False}
+    nula = {"url": "https://clutch.co/y", "dominio": "clutch.co", "aparece": None}
+    con = hallazgos_de_ia(_registro(_motor("ChatGPT", False, ["A"], listas=[revisada, nula])))[1]
+    assert "Revisamos sortlist.com y DIVE no aparece en la página." in con["texto"]
+    assert "clutch.co y" not in con["texto"].split("Revisamos")[1]
+    assert con["consecuencia"] == "La IA citó esa página al responder y en ella DIVE no figura."
+
+
+def test_sin_dato_no_genera_hallazgo_y_portugues_para_brasil():
+    assert hallazgos_de_ia({"status": "sin dato", "motores": []}) == []
+    assert hallazgos_de_ia(None) == []
+    caido = {**_motor("ChatGPT", None, []), "status": "sin dato", "nivel": "no determinable"}
+    assert hallazgos_de_ia(_registro(caido)) == []
+    pt = hallazgos_de_ia(_registro(_motor("ChatGPT", False, ["A", "B"]), idioma="pt"))[0]
+    assert pt["texto"].startswith("Perguntamos ao ChatGPT")
+    assert pt["texto"].endswith("Não mencionou DIVE.")
+
+
+def test_los_hallazgos_de_ia_van_primero_y_sin_promesas():
+    ia = hallazgos_de_ia(_registro(_motor("ChatGPT", False, ["A"])))
+    velocidad = {"texto": "Carga lento.", "alcance": "sitio", "tipo": "velocidad", "nivel": "observado", "consecuencia": "x"}
+    error = {"texto": "Hay un error.", "alcance": "sitio", "tipo": "error", "nivel": "observado", "consecuencia": "x"}
+    orden = cinco([velocidad, error, *reversed(ia)])
+    assert [h["tipo"] for h in orden] == ["ia_prueba", "ia_fuentes", "velocidad", "error"]
+    for h in ia:
+        assert "garant" not in (h["texto"] + h["consecuencia"]).casefold()

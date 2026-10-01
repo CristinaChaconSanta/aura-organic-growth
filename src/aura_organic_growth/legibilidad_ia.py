@@ -208,3 +208,91 @@ def medir(
         base["schema_tipos"] = crudo + base["schema_solo_con_js"]
     base["aparece_solo_con_js"] = aparece_solo_con_js(base["palabras_sin_js"], base["palabras_con_js"])
     return base
+
+
+ASISTENTES = {
+    "GPTBot": "ChatGPT", "OAI-SearchBot": "ChatGPT", "ChatGPT-User": "ChatGPT",
+    "ClaudeBot": "Claude", "PerplexityBot": "Perplexity",
+    "Google-Extended": "Gemini", "CCBot": "Common Crawl",
+}
+_PT = {
+    "js": (
+        "A página inicial mostra {sin} palavras a quem não executa JavaScript; com JavaScript aparecem {con}. "
+        "Esse conteúdo aparece só com JavaScript."
+    ),
+    "js_c": "Os robôs de IA que não executam JavaScript leem uma página quase vazia.",
+    "robots": "O arquivo que diz aos robôs o que podem ler bloqueia {lista}.",
+    "robots_c": "Esses assistentes de IA não podem usar o site para responder.",
+    "llms_si": "O site tem um arquivo llms.txt, um guia de leitura para IAs.",
+    "llms_no": "O site não tem um arquivo llms.txt, um guia de leitura para IAs.",
+    "llms_c": "É um sinal de ordem do site; não garante que nenhuma IA o cite.",
+    "schema": "As páginas declaram dados estruturados do tipo {tipos}.",
+    "schema_c": "Dão às IAs e aos buscadores uma descrição legível do negócio; não garantem menção.",
+    "y": "e",
+}
+_ES = {
+    "js": (
+        "La portada muestra {sin} palabras a quien no ejecuta JavaScript; con JavaScript aparecen {con}. "
+        "Ese contenido aparece solo con JavaScript."
+    ),
+    "js_c": "Los robots de IA que no ejecutan JavaScript leen una página casi vacía.",
+    "robots": "El archivo que le dice a los robots qué pueden leer bloquea a {lista}.",
+    "robots_c": "Esos asistentes de IA no pueden usar el sitio para responder.",
+    "llms_si": "El sitio tiene un archivo llms.txt, una guía de lectura para IAs.",
+    "llms_no": "El sitio no tiene un archivo llms.txt, una guía de lectura para IAs.",
+    "llms_c": "Es una señal de orden del sitio; no garantiza que ninguna IA lo cite.",
+    "schema": "Las páginas declaran datos estructurados de tipo {tipos}.",
+    "schema_c": "Le dan a las IAs y a los buscadores una descripción legible del negocio; no garantizan mención.",
+    "y": "y",
+}
+FUENTE_LECTURA = "Lectura del sitio"
+
+
+def _unir(nombres: list[str], y: str) -> str:
+    if len(nombres) == 1:
+        return nombres[0]
+    return f"{', '.join(nombres[:-1])} {y} {nombres[-1]}"
+
+
+def hallazgos_de_legibilidad(registro: dict | None, *, idioma: str = "es") -> list[dict]:
+    """Solo lo medido. Sin render no se afirma ausencia de contenido ni de datos estructurados."""
+    if not registro:
+        return []
+    t = _PT if idioma == "pt-BR" else _ES
+    fecha = str(registro.get("fecha") or "sin dato")
+    base = {"fuente": FUENTE_LECTURA, "fecha": fecha, "nivel": "observado", "alcance": "sitio"}
+    salida = []
+    sin, con = registro.get("palabras_sin_js"), registro.get("palabras_con_js")
+    if registro.get("aparece_solo_con_js") is True and sin is not None and con is not None:
+        salida.append({
+            **base, "tipo": "ia_js",
+            "texto": t["js"].format(sin=sin, con=con),
+            "evidencia": f"Palabras sin JavaScript: {sin}. Palabras con la página renderizada: {con}. {registro.get('url')}",
+            "consecuencia": t["js_c"],
+        })
+    bloqueados = [b for b, v in (registro.get("robots") or {}).items() if v == "bloqueado"]
+    if bloqueados:
+        asistentes = list(dict.fromkeys(ASISTENTES.get(b, b) for b in bloqueados))
+        salida.append({
+            **base, "tipo": "ia_robots",
+            "texto": t["robots"].format(lista=_unir(asistentes, t["y"])),
+            "evidencia": f"robots.txt bloquea: {', '.join(bloqueados)}. {registro.get('url')}/robots.txt",
+            "consecuencia": t["robots_c"],
+        })
+    llms = registro.get("llms_txt")
+    if llms is not None:
+        salida.append({
+            **base, "tipo": "ia_llms",
+            "texto": t["llms_si" if llms else "llms_no"],
+            "evidencia": f"{registro.get('url')}/llms.txt: {'responde 200' if llms else 'no responde'}.",
+            "consecuencia": t["llms_c"],
+        })
+    tipos = registro.get("schema_tipos") or []
+    if tipos:
+        salida.append({
+            **base, "tipo": "ia_schema",
+            "texto": t["schema"].format(tipos=_unir(tipos[:5], t["y"])),
+            "evidencia": f"JSON-LD: {', '.join(tipos)}. {registro.get('url')}",
+            "consecuencia": t["schema_c"],
+        })
+    return salida

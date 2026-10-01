@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from datetime import date, datetime
 
+from aura_organic_growth.legibilidad_ia import tiene_schema_rico
+
 _CRM = (
     "hs-scripts.com", "js.hs-analytics", "hubspot", "salesforce", "pardot",
     "pipedrive", "zoho", "rdstation", "activecampaign",
@@ -40,8 +42,18 @@ def _fecha_reciente(html: str, hoy: date, dias: int = 183) -> str | None:
     return None
 
 
-def clasificar(html: str | None, *, hoy: date | None = None, tiene_web: bool = True) -> dict:
-    """La evidencia es la marca encontrada. Sin web, o sin ninguna señal, no se audita."""
+def clasificar(
+    html: str | None,
+    *,
+    hoy: date | None = None,
+    tiene_web: bool = True,
+    llms_txt: bool | None = None,
+) -> dict:
+    """La evidencia es la marca encontrada. Sin web, o sin ninguna señal, no se audita.
+
+    llms.txt o datos estructurados ricos (Organization, LocalBusiness, FAQPage...) son
+    una señal de sitio trabajado: cuentan como una sola, así que la madurez no es «baja».
+    """
     hoy = hoy or date.today()
     if not tiene_web:
         return {
@@ -65,6 +77,10 @@ def clasificar(html: str | None, *, hoy: date | None = None, tiene_web: bool = T
     pauta = _tiene(html, _PAUTA)
     if pauta:
         evidencia.append({"senal": "etiqueta de pauta", "nivel": "observado", "detalle": pauta})
+    schema = tiene_schema_rico(html)
+    if llms_txt or schema:
+        detalle = "llms.txt" if llms_txt else f"datos estructurados: {', '.join(schema)}"
+        evidencia.append({"senal": "legibilidad IA", "nivel": "observado", "detalle": detalle})
     blog = _fecha_reciente(html, hoy)
     if blog:
         evidencia.append({"senal": "blog activo", "nivel": "observado", "detalle": blog})

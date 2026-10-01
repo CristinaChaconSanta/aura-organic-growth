@@ -23,7 +23,7 @@ The batch measured only speed and Google searches. The AI layer (axiom: every bu
 ## Tasks
 - [x] T1 AI live test module + tests (ia.py, observados.py; tests/test_ia.py)
 - [x] T2 AI legibility module + tests (legibilidad_ia.py, render.paginas_renderizadas; tests/test_legibilidad_ia.py)
-- [ ] T3 Findings: AI first, plain language; maturity fix + tests
+- [x] T3 Findings: AI first, plain language; maturity fix + tests (hallazgos_de_ia, hallazgos_de_legibilidad, hallazgos.ORDEN_IA, madurez.clasificar(llms_txt=))
 - [ ] T4 Wire into correr_lote and staging refresh
 - [ ] T5 Validator jargon rule + tests; Grok instructions; CLAUDE.md
 - [ ] T6 Run on the 6 current leads, refresh organic_borradores
@@ -36,3 +36,4 @@ Created 2026-09-30.
 
 - T1 done 2026-09-30: ia.py asks ChatGPT and Gemini via LLM Scraper with balance guard; servicio/ciudad observados moved to observados.py. Route: delegated direct (single writer).
 - T2 done 2026-09-30: robots for 7 AI bots, llms.txt, words without JS vs rendered, JSON-LD types; no render => 'no determinable'.
+- T3 done 2026-09-30: AI findings rank first; absence in a cited list only if the page was fetched and had content; maturity counts llms.txt or rich JSON-LD as one signal.

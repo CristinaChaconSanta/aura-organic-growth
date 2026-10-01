@@ -46,3 +46,24 @@ def test_portada_sin_respuesta_no_se_inventa():
     resultado = clasificar(None, hoy=HOY, tiene_web=True)
     assert resultado["madurez"] == "no determinable"
     assert resultado["ruta"] == "no auditar"
+
+
+def test_llms_txt_o_schema_rico_no_es_madurez_baja():
+    pagina = "<html><title>Terra</title></html>"
+    con_llms = clasificar(pagina, hoy=HOY, llms_txt=True)
+    assert con_llms["madurez"] == "media" and con_llms["ruta"] == "auditar"
+    assert con_llms["evidencia"][0] == {"senal": "legibilidad IA", "nivel": "observado", "detalle": "llms.txt"}
+    schema = (
+        '<script type="application/ld+json">{"@graph":[{"@type":"FAQPage"},{"@type":"LocalBusiness"}]}</script>'
+    )
+    con_schema = clasificar(schema, hoy=HOY, llms_txt=False)
+    assert con_schema["madurez"] == "media"
+    assert "FAQPage" in con_schema["evidencia"][0]["detalle"]
+    assert clasificar(pagina, hoy=HOY, llms_txt=False)["madurez"] == "baja"
+
+
+def test_senal_de_ia_suma_una_sola_vez_con_otra_senal():
+    html = '<script src="https://www.googletagmanager.com/gtag/js"></script>'
+    assert clasificar(html, hoy=HOY, llms_txt=True)["madurez"] == "alta"
+    schema_y_llms = '<script type="application/ld+json">{"@type":"Organization"}</script>'
+    assert clasificar(schema_y_llms, hoy=HOY, llms_txt=True)["madurez"] == "media"

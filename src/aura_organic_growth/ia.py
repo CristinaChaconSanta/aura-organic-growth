@@ -318,3 +318,151 @@ def consultar(
     if estado == "sin dato":
         registro["razon"] = "; ".join(sorted({str(f.get("razon")) for f in filas}))
     return registro
+
+
+_TEXTOS = {
+    "es": {
+        "y": "y",
+        "prep": "a ",
+        "pregunto_uno": "Le preguntamos a {motor} «{pregunta}»",
+        "pregunto_varios": "Le preguntamos {motores} «{pregunta}».",
+        "recomendo": "{motor} recomendó a {lista}.",
+        "y_recomendo": " y recomendó a {lista}.",
+        "sin_recomendados": ".",
+        "no_menciono": "No mencionó a {empresa}.",
+        "si_menciono": "Sí mencionó a {empresa}.",
+        "ninguno": "Ninguno mencionó a {empresa}.",
+        "todos": "Todos mencionaron a {empresa}.",
+        "mixto": "{si} mencionó a {empresa}; {no} no.",
+        "consecuencia_ausente": "Quien le pregunta a una IA por este servicio recibe a la competencia.",
+        "consecuencia_sin_nombres": "Quien le pregunta a una IA por este servicio no recibe su nombre.",
+        "consecuencia_presente": "Hoy la IA lo nombra al responder esta pregunta; es una foto de hoy, no una garantía.",
+        "fuentes": "Para responder, {motores} se apoyó en {lista}.",
+        "fuentes_varios": "Para responder, {motores} se apoyaron en {lista}.",
+        "revisada_no": "Revisamos {dominio} y {empresa} no aparece en la página.",
+        "revisada_si": "Revisamos {dominio} y {empresa} sí aparece en la página.",
+        "consecuencia_fuentes_ausente": "La IA citó esa página al responder y en ella {empresa} no figura.",
+        "consecuencia_fuentes": "Esas son las páginas que la IA citó al responder esta pregunta.",
+        "fuente": "Prueba en vivo con {motores}",
+    },
+    "pt-BR": {
+        "y": "e",
+        "prep": "ao ",
+        "pregunto_uno": "Perguntamos ao {motor} «{pregunta}»",
+        "pregunto_varios": "Perguntamos {motores} «{pregunta}».",
+        "recomendo": "O {motor} recomendou {lista}.",
+        "y_recomendo": " e ele recomendou {lista}.",
+        "sin_recomendados": ".",
+        "no_menciono": "Não mencionou {empresa}.",
+        "si_menciono": "Mencionou {empresa}.",
+        "ninguno": "Nenhum mencionou {empresa}.",
+        "todos": "Todos mencionaram {empresa}.",
+        "mixto": "O {si} mencionou {empresa}; o {no} não.",
+        "consecuencia_ausente": "Quem pergunta a uma IA por esse serviço recebe a concorrência.",
+        "consecuencia_sin_nombres": "Quem pergunta a uma IA por esse serviço não recebe o seu nome.",
+        "consecuencia_presente": "Hoje a IA cita a empresa ao responder essa pergunta; é uma foto de hoje, não uma garantia.",
+        "fuentes": "Para responder, {motores} se apoiou em {lista}.",
+        "fuentes_varios": "Para responder, {motores} se apoiaram em {lista}.",
+        "revisada_no": "Revisamos {dominio} e {empresa} não aparece na página.",
+        "revisada_si": "Revisamos {dominio} e {empresa} aparece na página.",
+        "consecuencia_fuentes_ausente": "A IA citou essa página ao responder e nela {empresa} não consta.",
+        "consecuencia_fuentes": "Essas são as páginas que a IA citou ao responder essa pergunta.",
+        "fuente": "Teste ao vivo com {motores}",
+    },
+}
+
+
+def _lista(nombres: list[str], t: dict) -> str:
+    if len(nombres) == 1:
+        return nombres[0]
+    return f"{', '.join(nombres[:-1])} {t['y']} {nombres[-1]}"
+
+
+def _unidos(nombres: list[str], t: dict, *, prep: str = "") -> str:
+    """Une con «y»/«e»; prep va delante de cada nombre (es: «a ChatGPT y a Gemini»)."""
+    return _lista([f"{prep}{n}" for n in nombres], t)
+
+
+def hallazgos_de_ia(registro: dict | None, *, empresa: str = "") -> list[dict]:
+    """Hasta dos hallazgos: lo que respondió la IA y las fuentes que citó. Solo con motor observado."""
+    if not registro or registro.get("status") != "ok":
+        return []
+    motores = [m for m in registro.get("motores") or [] if m.get("status") == "ok" and m.get("nivel") == "observado"]
+    if not motores:
+        return []
+    t = _TEXTOS.get(registro.get("idioma") == "pt" and "pt-BR" or "es")
+    nombre = empresa or str(registro.get("empresa") or "") or str(registro.get("dominio") or "")
+    pregunta = str(registro.get("pregunta") or "")
+    fecha = str(registro.get("fecha") or SIN_DATO)
+    pais = str(registro.get("pais") or SIN_DATO)
+    nombres_motores = [m["motor"] for m in motores]
+    fuente = t["fuente"].format(motores=f" {t['y']} ".join(nombres_motores))
+    hallazgos = []
+
+    # 1. Lo que respondió la IA.
+    if len(motores) == 1:
+        m = motores[0]
+        rec = m["recomendados"][:5]
+        texto = t["pregunto_uno"].format(motor=m["motor"], pregunta=pregunta)
+        texto += t["y_recomendo"].format(lista=_lista(rec, t)) if rec else t["sin_recomendados"]
+        texto += " " + (t["si_menciono"] if m["menciona_lead"] else t["no_menciono"]).format(empresa=nombre)
+    else:
+        partes = [t["pregunto_varios"].format(motores=_unidos(nombres_motores, t, prep=t["prep"]), pregunta=pregunta)]
+        for m in motores:
+            if m["recomendados"]:
+                partes.append(t["recomendo"].format(motor=m["motor"], lista=_lista(m["recomendados"][:5], t)))
+        si = [m["motor"] for m in motores if m["menciona_lead"]]
+        no = [m["motor"] for m in motores if not m["menciona_lead"]]
+        if not si:
+            partes.append(t["ninguno"].format(empresa=nombre))
+        elif not no:
+            partes.append(t["todos"].format(empresa=nombre))
+        else:
+            partes.append(t["mixto"].format(si=_unidos(si, t), no=_unidos(no, t), empresa=nombre))
+        texto = " ".join(partes)
+    algun_si = any(m["menciona_lead"] for m in motores)
+    hay_rec = any(m["recomendados"] for m in motores)
+    consecuencia = (
+        t["consecuencia_presente"] if algun_si
+        else t["consecuencia_ausente"] if hay_rec
+        else t["consecuencia_sin_nombres"]
+    )
+    evidencia = " | ".join(
+        f"{m['motor']}, {fecha}, {pais}, {m['idioma']}. "
+        f"{'Mencionó' if m['menciona_lead'] else 'No mencionó'} a {nombre}. "
+        f"Recomendó: {', '.join(m['recomendados']) or 'sin dato'}. "
+        f"Fuentes: {', '.join(m['fuentes_citadas']) or 'sin dato'}."
+        for m in motores
+    )
+    hallazgos.append({
+        "texto": texto, "evidencia": evidencia, "fuente": fuente, "fecha": fecha,
+        "nivel": "observado", "consecuencia": consecuencia, "alcance": "sitio", "tipo": "ia_prueba",
+    })
+
+    # 2. Las fuentes citadas. «No aparece» solo si se bajó la página y se buscó el lead.
+    dominios: list[str] = []
+    revisadas: dict[str, dict] = {}
+    for m in motores:
+        for d in m["fuentes_citadas"]:
+            if d not in dominios:
+                dominios.append(d)
+        for r in m.get("listas_revisadas") or []:
+            if r.get("aparece") is not None:
+                revisadas.setdefault(r["url"], r)
+    if dominios:
+        texto = t["fuentes" if len(motores) == 1 else "fuentes_varios"].format(motores=_unidos(nombres_motores, t), lista=_unidos(dominios[:5], t))
+        ausentes = [r for r in revisadas.values() if r["aparece"] is False]
+        for r in revisadas.values():
+            clave = "revisada_no" if r["aparece"] is False else "revisada_si"
+            texto += " " + t[clave].format(dominio=r["dominio"], empresa=nombre)
+        hallazgos.append({
+            "texto": texto,
+            "evidencia": "; ".join([f"{m['motor']}: {', '.join(m['fuentes_citadas'])}" for m in motores if m["fuentes_citadas"]]
+                                   + [f"{r['url']} revisada, {'no aparece' if r['aparece'] is False else 'aparece'}" for r in revisadas.values()]),
+            "fuente": fuente, "fecha": fecha, "nivel": "observado",
+            "consecuencia": (
+                t["consecuencia_fuentes_ausente"].format(empresa=nombre) if ausentes else t["consecuencia_fuentes"]
+            ),
+            "alcance": "sitio", "tipo": "ia_fuentes",
+        })
+    return hallazgos

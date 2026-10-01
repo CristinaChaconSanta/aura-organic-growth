@@ -22,7 +22,19 @@ def prohibido(texto: str) -> bool:
     return any(marca in plano for marca in _PROHIBIDO)
 
 
-def _clave(hallazgo: dict) -> tuple[int, int]:
+# La prueba con IA va primero: es el gancho. Sigue la lectura del sitio para IA.
+ORDEN_IA = ("ia_prueba", "ia_fuentes", "ia_js", "ia_robots", "ia_schema", "ia_llms")
+
+
+def _clave(hallazgo: dict) -> tuple[int, int, int]:
+    tipo_ia = str(hallazgo.get("tipo") or "")
+    if tipo_ia in ORDEN_IA:
+        return 0, ORDEN_IA.index(tipo_ia), 0
+    grupo, tipo = _clave_sitio(hallazgo)
+    return 1, grupo, tipo
+
+
+def _clave_sitio(hallazgo: dict) -> tuple[int, int]:
     alcance = 0 if hallazgo.get("alcance") == "sitio" else 1
     tipo = {"velocidad": 0, "error": 1}.get(str(hallazgo.get("tipo") or ""), 2)
     if alcance == 1:
