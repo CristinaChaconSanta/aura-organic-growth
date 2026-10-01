@@ -26,7 +26,7 @@ The batch measured only speed and Google searches. The AI layer (axiom: every bu
 - [x] T3 Findings: AI first, plain language; maturity fix + tests (hallazgos_de_ia, hallazgos_de_legibilidad, hallazgos.ORDEN_IA, madurez.clasificar(llms_txt=))
 - [x] T4 Wire into correr_lote and staging refresh (correr_lote._paso_ia, staging.hallazgos_de_ia_y_legibilidad; tests/test_correr_lote.py)
 - [x] T5 Validator jargon rule + tests; Grok instructions; CLAUDE.md
-- [ ] T6 Run on the 6 current leads, refresh organic_borradores
+- [x] T6 Run on the 6 current leads, refresh organic_borradores (scripts/ia_lote.py; AI for DIVE, Clemsa, English UC; legibility for all 6)
 
 - [x] T5b Observed fallback for the buyer question (servicio from title/meta/h1, ciudad stored or país only, english.uc.cl override) + tests
 
@@ -42,3 +42,5 @@ Created 2026-09-30.
 - T4 done 2026-09-30: IA step runs first for every lead with a web (low maturity included); refresh rebuilds IA findings from the resumen record and puts them first.
 - T5 done 2026-09-30: validar() adds jerga_tecnica and mas_de_un_dato; promesa_aparicion_ia now only flags promises (naming ChatGPT/Gemini is allowed); citing a finding no longer requires a number (four consecutive words from the finding also count). T6 not run: paid calls are Cristina's decision.
 - T5b done 2026-09-30: ia.servicio_de_sitio reads literal title/meta/h1 without the brand; result records servicio_origen; observados.URLS maps uc.cl to english.uc.cl.
+- T6 done 2026-09-30: live run authorized by Cristina within the free credit. Balance 0.637 -> 0.581 USD (6 questions in the first run, 1 raw shape probe x2 engines, 6 in the re-run after the parser fix). AI test skipped for OutLoud, Terra, FrescoFrigo because the question built from the site was unreliable (CTA text or slogan, city outside the country); legibility ran for all 6. organic_borradores.hallazgos refreshed for the 6 rows (estado pendiente; rechazado rows untouched; borradores not rewritten).
+- Live shape: both engines return `markdown`, `sources` (domain, url, title) and `items`; ChatGPT also `brand_entities`. Gemini puts citation links inside the bold names; parser now strips them. terraenergy.io/llms.txt answers 200 with an empty body (reported as absent).

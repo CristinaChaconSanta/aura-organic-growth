@@ -172,3 +172,9 @@ def test_datos_estructurados_solo_si_los_hay_y_sin_jerga():
     assert "schema" not in h["texto"].casefold()
     assert hallazgos_de_legibilidad(_registro(schema_tipos=[])) == []
     assert hallazgos_de_legibilidad(None) == []
+
+
+def test_datos_estructurados_solo_nombra_los_tipos_que_describen_el_negocio():
+    (h,) = hallazgos_de_legibilidad(_registro(schema_tipos=["WebPage", "ReadAction", "Organization", "ListItem", "LocalBusiness"]))
+    assert h["texto"] == "Las páginas declaran datos estructurados de tipo Organization y LocalBusiness."
+    assert hallazgos_de_legibilidad(_registro(schema_tipos=["WebPage", "BreadcrumbList"])) == []

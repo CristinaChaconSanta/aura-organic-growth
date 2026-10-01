@@ -287,7 +287,7 @@ def hallazgos_de_legibilidad(registro: dict | None, *, idioma: str = "es") -> li
             "evidencia": f"{registro.get('url')}/llms.txt: {'responde 200' if llms else 'no responde'}.",
             "consecuencia": t["llms_c"],
         })
-    tipos = registro.get("schema_tipos") or []
+    tipos = [t for t in registro.get("schema_tipos") or [] if t.casefold() in TIPOS_RICOS]
     if tipos:
         salida.append({
             **base, "tipo": "ia_schema",

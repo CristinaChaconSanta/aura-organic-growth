@@ -37,7 +37,7 @@ DIRECTORIOS = frozenset({
     "themanifest.com", "agencyspotter.com",
 })
 # Hosts que no son una fuente del tema: el propio buscador de la IA.
-IGNORADOS = ("chatgpt.com", "openai.com", "vertexaisearch.cloud.google.com")
+IGNORADOS = ("chatgpt.com", "openai.com", "vertexaisearch.cloud.google.com", "maps.google.com", "google.com")
 TOPE_RECOMENDADOS = 8
 TOPE_LISTAS = 3
 PALABRAS_MINIMAS_LISTA = 300
@@ -202,13 +202,15 @@ def _nombre_limpio(crudo: str) -> str:
 
 def _aceptable(nombre: str, vistos: set[str], pregunta: str) -> bool:
     clave = plano(nombre)
+    # Una palabra que la pregunta ya trae (IELTS, Cambridge) es el tema, no un negocio recomendado.
+    en_pregunta = bool(pregunta) and re.search(rf"(?<![a-z0-9]){re.escape(clave)}(?![a-z0-9])", plano(pregunta))
     return bool(
-        nombre and clave not in vistos and clave not in GENERICOS and len(nombre.split()) <= 6
-        and not nombre.endswith("?") and clave != plano(pregunta) and (nombre[0].isupper() or "." in nombre)
+        nombre and clave not in vistos and clave not in GENERICOS and len(nombre.split()) <= 6 and not en_pregunta
+        and not nombre.endswith("?") and (nombre[0].isupper() or "." in nombre)
     )
 
 
-def entidades_de(entidades: list | None) -> list[str]:
+def entidades_de(entidades: list | None, pregunta: str = "") -> list[str]:
     """Negocios que la propia respuesta marca como entidad (ChatGPT: brand_entities)."""
     salida: list[str] = []
     vistos: set[str] = set()
@@ -216,7 +218,7 @@ def entidades_de(entidades: list | None) -> list[str]:
         if not isinstance(item, dict):
             continue
         nombre = _nombre_limpio(str(item.get("title") or ""))
-        if _aceptable(nombre, vistos, ""):
+        if _aceptable(nombre, vistos, pregunta):
             vistos.add(plano(nombre))
             salida.append(nombre)
     return salida[:TOPE_RECOMENDADOS]
@@ -352,7 +354,7 @@ def _consultar_motor(http, auth, motor: str, base: dict, dominio: str, empresa: 
         fila["costo_usd"] = costo
         return fila
     citadas = urls_citadas(texto, extra)
-    por_entidad = entidades_de(entidades)
+    por_entidad = entidades_de(entidades, base["pregunta"])
     recomendados = por_entidad or recomendados_de(texto, pregunta=base["pregunta"])
     return {
         "pregunta": base["pregunta"],
@@ -517,6 +519,15 @@ def hallazgos_de_ia(registro: dict | None, *, empresa: str = "") -> list[dict]:
     pregunta = str(registro.get("pregunta") or "")
     fecha = str(registro.get("fecha") or SIN_DATO)
     pais = str(registro.get("pais") or SIN_DATO)
+    # Los registros guardados antes de estos filtros se limpian aquí, sin tocar el original.
+    motores = [
+        {
+            **m,
+            "recomendados": [n for n in m["recomendados"] if _aceptable(n, set(), pregunta)],
+            "fuentes_citadas": [d for d in m["fuentes_citadas"] if not _ignorado(d)],
+        }
+        for m in motores
+    ]
     nombres_motores = [m["motor"] for m in motores]
     fuente = t["fuente"].format(motores=f" {t['y']} ".join(nombres_motores))
     hallazgos = []

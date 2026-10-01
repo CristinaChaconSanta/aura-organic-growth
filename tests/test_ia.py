@@ -386,3 +386,15 @@ def test_chatgpt_vivo_usa_las_entidades_y_gemini_la_negrita_sin_enlaces(monkeypa
 def test_entidades_ignoran_basura_y_duplicados():
     assert entidades_de(None) == []
     assert entidades_de([{"title": "Bigbuda – X"}, {"title": "bigbuda | Y"}, "x", {"title": ""}]) == ["Bigbuda"]
+
+
+def test_filtra_palabras_de_la_pregunta_y_el_buscador_de_mapas():
+    pregunta = "¿Qué cursos de IELTS y Cambridge me recomiendas en Chile?"
+    gemini = _motor("Gemini", True, ["IELTS", "Cambridge", "Unity Chile"], fuentes=("maps.google.com", "unitychile.cl"))
+    registro = {**_registro(gemini), "pregunta": pregunta}
+    primero, segundo = hallazgos_de_ia(registro)
+    assert "IELTS" not in primero["texto"].split("»", 1)[1]
+    assert "recomendó a Unity Chile" in primero["texto"]
+    assert "maps.google.com" not in segundo["texto"] and "unitychile.cl" in segundo["texto"]
+    assert gemini["recomendados"] == ["IELTS", "Cambridge", "Unity Chile"]  # el registro guardado no se toca
+    assert entidades_de([{"title": "IELTS"}, {"title": "Unity"}], pregunta) == ["Unity"]
