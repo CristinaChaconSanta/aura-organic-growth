@@ -8,6 +8,7 @@ inventa una. Nada de esto promete que una IA mencione al negocio.
 
 from __future__ import annotations
 
+import html as html_lib
 import re
 from datetime import date
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -54,22 +55,91 @@ def mercado_de(pais: str) -> dict | None:
     return MERCADOS.get(plano(pais))
 
 
+def ciudad_guardada(valor: str) -> str:
+    """La ciudad tal como está en la ficha. Vacía si es «sin dato» o una nota de Apollo."""
+    texto = str(valor or "").strip()
+    if not texto or plano(texto) == SIN_DATO or "dato de apollo" in plano(texto):
+        return ""
+    return texto
+
+
 def pregunta_de(servicios: list[str], ciudad: str, pais: str) -> str:
-    """La pregunta de un comprador. Solo con servicio y ciudad observados."""
-    ciudad = str(ciudad or "").strip()
+    """La pregunta de un comprador. Sin ciudad se usa solo el país; sin ambos, «sin dato»."""
+    ciudad = ciudad_guardada(ciudad)
     pais = str(pais or "").strip()
-    if not ciudad or plano(ciudad) == SIN_DATO:
-        return SIN_DATO
+    if plano(pais) == SIN_DATO:
+        pais = ""
     servicio = next(
         (str(s).strip() for s in servicios or [] if str(s or "").strip() and plano(str(s)) != SIN_DATO),
         "",
     )
-    if not servicio:
+    lugar = f"{ciudad}, {pais}" if ciudad and pais else ciudad or pais
+    if not servicio or not lugar:
         return SIN_DATO
-    lugar = ciudad if not pais or plano(pais) == SIN_DATO else f"{ciudad}, {pais}"
     if idioma_de(pais) == "pt-BR":
         return f"Qual {servicio} você recomenda em {lugar}?"
     return f"¿Qué {servicio} me recomiendas en {lugar}?"
+
+
+_TITULO = re.compile(r"<title[^>]*>(.*?)</title\s*>", re.IGNORECASE | re.DOTALL)
+_H1 = re.compile(r"<h1[^>]*>(.*?)</h1\s*>", re.IGNORECASE | re.DOTALL)
+_META = re.compile(r"<meta\b[^>]*>", re.IGNORECASE)
+_ATRIBUTO = re.compile(r"""([a-zA-Z:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')""")
+_SEPARADOR = re.compile(r"\s+[–—|·•-]\s+|\s*\|\s*|:\s+")
+_GENERICAS = frozenset({
+    "inicio", "home", "bienvenido", "bienvenidos", "bienvenida", "welcome", "pagina principal",
+    "pagina de inicio", "homepage", "home page", "sitio oficial", "sitio web",
+})
+MAX_PALABRAS_SERVICIO = 14
+
+
+def _texto_limpio(crudo: str) -> str:
+    return re.sub(r"\s+", " ", html_lib.unescape(re.sub(r"<[^>]+>", " ", crudo or ""))).strip()
+
+
+def _meta_description(html: str) -> str:
+    for etiqueta in _META.findall(html or ""):
+        atributos = {k.lower(): (a or b) for k, a, b in _ATRIBUTO.findall(etiqueta)}
+        if atributos.get("name", "").lower() == "description":
+            return _texto_limpio(atributos.get("content", ""))
+    return ""
+
+
+def _frase_de_servicio(texto: str, marcas: set[str]) -> str:
+    """Un segmento del texto sin la marca, tal como está escrito. Vacío si no es una frase de servicio."""
+    primera = re.split(r"[.!?](?:\s|$)", texto or "", maxsplit=1)[0]
+    for segmento in _SEPARADOR.split(primera):
+        limpio = segmento.strip(" \t-–—|·•:,;.\"'«»")
+        clave = plano(limpio)
+        if not limpio or clave in marcas or clave in _GENERICAS:
+            continue
+        if any(re.search(rf"(?<![a-z0-9]){re.escape(m)}(?![a-z0-9])", clave) for m in marcas):
+            continue  # la marca va mezclada con el texto: no se corta ni se reescribe
+        if not 2 <= len(limpio.split()) <= MAX_PALABRAS_SERVICIO:
+            continue
+        return limpio[0].lower() + limpio[1:]
+    return ""
+
+
+def servicio_de_sitio(html: str | None, *, empresa: str = "", dominio: str = "") -> dict | None:
+    """Servicio con el texto literal de la portada: title, meta description o H1, en ese orden.
+
+    Quita el nombre de la marca. {"servicio", "campo"} o None si ninguno da una frase.
+    """
+    if not html:
+        return None
+    marcas = marcas_de(dominio, empresa)
+    titulo = _TITULO.search(html)
+    h1 = _H1.search(html)
+    for campo, texto in (
+        ("title", _texto_limpio(titulo.group(1)) if titulo else ""),
+        ("meta", _meta_description(html)),
+        ("h1", _texto_limpio(h1.group(1)) if h1 else ""),
+    ):
+        frase = _frase_de_servicio(texto, marcas)
+        if frase:
+            return {"servicio": frase, "campo": campo}
+    return None
 
 
 def sin_utm(url: str) -> str:
@@ -266,6 +336,7 @@ def consultar(
     hoy: date | None = None,
     motores: tuple[str, ...] = ("ChatGPT", "Gemini"),
     revisar_listas: bool = True,
+    origen_servicio: str = "observados",
 ) -> dict:
     fecha = (hoy or date.today()).isoformat()
     mercado = mercado_de(pais)
@@ -281,6 +352,9 @@ def consultar(
         "dominio": dominio_de(dominio),
         "empresa": empresa or SIN_DATO,
         "pregunta": pregunta,
+        "servicio": next((str(x) for x in servicios or [] if str(x).strip()), SIN_DATO),
+        "servicio_origen": origen_servicio if servicios else SIN_DATO,
+        "ciudad": ciudad_guardada(ciudad) or SIN_DATO,
         "fecha": fecha,
         "pais": base["pais"],
         "idioma": base["idioma"],

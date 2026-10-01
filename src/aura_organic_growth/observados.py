@@ -18,3 +18,13 @@ OBSERVADOS = {
 
 def de(dominio: str) -> dict | None:
     return OBSERVADOS.get(dominio_de(dominio))
+
+# Sitio real del lead cuando no es el que guarda Apollo (dato de Cristina).
+URLS = {
+    "uc.cl": "https://english.uc.cl",
+}
+
+
+def url_de(url: str, dominio: str) -> str:
+    """Primero el sitio observado, luego la url guardada, luego el dominio."""
+    return URLS.get(dominio_de(dominio) or dominio_de(url)) or url or (f"https://{dominio}" if dominio else "")

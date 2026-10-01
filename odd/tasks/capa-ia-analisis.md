@@ -28,6 +28,8 @@ The batch measured only speed and Google searches. The AI layer (axiom: every bu
 - [x] T5 Validator jargon rule + tests; Grok instructions; CLAUDE.md
 - [ ] T6 Run on the 6 current leads, refresh organic_borradores
 
+- [x] T5b Observed fallback for the buyer question (servicio from title/meta/h1, ciudad stored or país only, english.uc.cl override) + tests
+
 ## Route
 Delegated direct (writer trigger: 2+ non-trivial files). Branch: master, as the repo and Grok Bot instructions use master.
 
@@ -39,3 +41,4 @@ Created 2026-09-30.
 - T3 done 2026-09-30: AI findings rank first; absence in a cited list only if the page was fetched and had content; maturity counts llms.txt or rich JSON-LD as one signal.
 - T4 done 2026-09-30: IA step runs first for every lead with a web (low maturity included); refresh rebuilds IA findings from the resumen record and puts them first.
 - T5 done 2026-09-30: validar() adds jerga_tecnica and mas_de_un_dato; promesa_aparicion_ia now only flags promises (naming ChatGPT/Gemini is allowed); citing a finding no longer requires a number (four consecutive words from the finding also count). T6 not run: paid calls are Cristina's decision.
+- T5b done 2026-09-30: ia.servicio_de_sitio reads literal title/meta/h1 without the brand; result records servicio_origen; observados.URLS maps uc.cl to english.uc.cl.

@@ -6,6 +6,7 @@ from aura_organic_growth.ia import (
     menciona,
     pregunta_de,
     recomendados_de,
+    servicio_de_sitio,
     sin_utm,
     urls_citadas,
 )
@@ -70,8 +71,10 @@ def test_pregunta_solo_con_servicio_y_ciudad_observados():
     )
     assert pregunta_de(["agência de marketing"], "São Paulo", "Brasil").startswith("Qual agência de marketing")
     assert pregunta_de([], "Santiago", "Chile") == "sin dato"
-    assert pregunta_de(["agencia"], "", "Chile") == "sin dato"
-    assert pregunta_de(["agencia"], "sin dato", "Chile") == "sin dato"
+    assert pregunta_de(["agencia"], "", "Chile") == "¿Qué agencia me recomiendas en Chile?"
+    assert pregunta_de(["agencia"], "sin dato", "Chile") == "¿Qué agencia me recomiendas en Chile?"
+    assert pregunta_de(["agencia"], "Brazil (dato de Apollo)", "Brasil") == "Qual agencia você recomenda em Brasil?"
+    assert pregunta_de(["agencia"], "", "") == "sin dato"
 
 
 def test_sin_utm_y_dominios_citados():
@@ -108,6 +111,41 @@ def test_sin_credenciales_no_llama(monkeypatch):
     r = consultar(["agencia"], ciudad="Santiago", pais="Chile", dominio="dive.cl", session=Nada(), hoy=HOY)
     assert (r["status"], r["razon"]) == ("sin dato", "sin DATAFORSEO_LOGIN")
     assert r["motores"] == []
+
+
+def test_servicio_literal_de_la_portada_sin_la_marca():
+    clemsa = servicio_de_sitio(
+        "<title>Clemsa – Venta de maquinarias equipos y repuestos</title>", empresa="Clemsa", dominio="clemsa.cl"
+    )
+    assert clemsa == {"servicio": "venta de maquinarias equipos y repuestos", "campo": "title"}
+    meta = servicio_de_sitio(
+        "<title>Inicio | Clemsa</title><meta content='Importamos maquinaria pesada. Y más.' name='description'>",
+        empresa="Clemsa", dominio="clemsa.cl",
+    )
+    assert meta == {"servicio": "importamos maquinaria pesada", "campo": "meta"}
+    h1 = servicio_de_sitio(
+        "<title>English UC</title><h1> Cursos de <b>inglés</b> para adultos </h1>", empresa="English UC", dominio="uc.cl"
+    )
+    assert h1 == {"servicio": "cursos de inglés para adultos", "campo": "h1"}
+
+
+def test_sin_frase_de_servicio_queda_sin_dato():
+    assert servicio_de_sitio(None, empresa="X", dominio="x.cl") is None
+    assert servicio_de_sitio("<title>Terra</title><h1>Hola</h1>", empresa="Terra", dominio="terra.io") is None
+    # Marca mezclada con el texto: no se corta ni se reescribe.
+    assert servicio_de_sitio("<title>Terra Energy solar</title>", empresa="Terra", dominio="terra.io") is None
+    assert servicio_de_sitio("<title>Inicio</title>", empresa="Terra", dominio="terra.io") is None
+
+
+def test_el_registro_dice_de_donde_salio_el_servicio(monkeypatch):
+    _credenciales(monkeypatch)
+    r = consultar(
+        ["venta de maquinarias"], ciudad="San Bernardo", pais="Chile", dominio="clemsa.cl",
+        session=Http(), hoy=HOY, origen_servicio="title", revisar_listas=False,
+    )
+    assert (r["servicio"], r["servicio_origen"], r["ciudad"]) == ("venta de maquinarias", "title", "San Bernardo")
+    sin = consultar([], ciudad="", pais="Chile", dominio="x.cl", session=Http(), hoy=HOY, origen_servicio="sin dato")
+    assert (sin["servicio_origen"], sin["status"]) == ("sin dato", "sin dato")
 
 
 def test_sin_servicio_no_inventa_pregunta(monkeypatch):

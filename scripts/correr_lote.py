@@ -26,12 +26,12 @@ from aura_organic_growth.competidores import comparar_velocidad, repetidos  # no
 from aura_organic_growth.crux import campo, hallazgo_velocidad  # noqa: E402
 from aura_organic_growth.entidad import entidad  # noqa: E402
 from aura_organic_growth.hallazgos import cinco, problema_mas_grave  # noqa: E402
-from aura_organic_growth.ia import consultar as consultar_ia, hallazgos_de_ia  # noqa: E402
+from aura_organic_growth.ia import consultar as consultar_ia, hallazgos_de_ia, servicio_de_sitio  # noqa: E402
 from aura_organic_growth.legibilidad_ia import hallazgos_de_legibilidad, medir as medir_legibilidad  # noqa: E402
 from aura_organic_growth.lote import descargar_fichas, guardar, seleccionar  # noqa: E402
 from aura_organic_growth.cruce import idioma_de  # noqa: E402
 from aura_organic_growth.madurez import clasificar  # noqa: E402
-from aura_organic_growth.observados import de as observado_de  # noqa: E402
+from aura_organic_growth.observados import de as observado_de, url_de  # noqa: E402
 from aura_organic_growth.paginas import faltan  # noqa: E402
 from aura_organic_growth.places_ficha import ficha_google, ids_por_categoria, para_guardar  # noqa: E402
 from aura_organic_growth.senales import pauta_activa, subdominios_nuevos, vacante, wayback  # noqa: E402
@@ -107,15 +107,24 @@ def _seguro(llamada, fallo: dict) -> dict:
 
 def _paso_ia(lead: dict, url: str, html: str | None) -> tuple[dict, dict, list[dict]]:
     """Primer paso de la medición: prueba con IA y lectura del sitio para IA. Sin web no corre."""
-    dominio = urlparse(_origen(url, lead["dominio"])).netloc.removeprefix("www.")
-    observado = observado_de(dominio) or {}
+    # El dominio guardado decide el cruce por marca; la url puede ser el sitio real (ver observados.URLS).
+    dominio = lead["dominio"] or urlparse(_origen(url, "")).netloc.removeprefix("www.")
+    observado = observado_de(dominio)
+    if observado:
+        servicios, ciudad, origen = observado["servicios"], observado["ciudad"], "observados"
+    else:
+        # Servicio del texto literal de la portada; ciudad guardada en la ficha, o solo el país.
+        hallado = servicio_de_sitio(html, empresa=lead["empresa"], dominio=dominio)
+        servicios = [hallado["servicio"]] if hallado else []
+        ciudad, origen = lead["ciudad"], hallado["campo"] if hallado else "sin dato"
     ia = _seguro(
         lambda: consultar_ia(
-            observado.get("servicios") or [],
-            ciudad=observado.get("ciudad") or "",
+            servicios,
+            ciudad=ciudad,
             pais=lead["pais"],
             dominio=dominio,
             empresa=lead["empresa"],
+            origen_servicio=origen,
         ),
         {"dominio": dominio, "status": "sin dato", "razon": "sin respuesta", "motores": []},
     )
@@ -129,7 +138,7 @@ def _paso_ia(lead: dict, url: str, html: str | None) -> tuple[dict, dict, list[d
 
 
 def _medir(lead: dict) -> dict:
-    url = lead["url"] or _origen("", lead["dominio"])
+    url = url_de(lead["url"], lead["dominio"])
     estado, html = _portada(url)
     tiene_web = bool(url)
     ia, legibilidad, hallazgos_ia = _paso_ia(lead, url, html) if tiene_web else ({}, {}, [])

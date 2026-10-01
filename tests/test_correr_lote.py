@@ -82,3 +82,25 @@ def test_dominio_sin_servicio_observado_deja_la_ia_en_sin_dato(monkeypatch):
     fila = lote._medir(_lead(url="https://otra.cl", dominio="otra.cl", empresa="Otra"))
     assert fila["ia"]["status"] == "sin dato"
     assert fila["ia"]["razon"] == "sin servicio o sin ciudad observados"
+
+
+def test_servicio_de_la_portada_cuando_no_hay_observado(monkeypatch):
+    lote = _cargar()
+    recibido = {}
+    monkeypatch.setattr(lote, "_portada", lambda url: (200, "<title>Clemsa – Venta de maquinarias equipos y repuestos</title>"))
+    monkeypatch.setattr(lote, "consultar_ia", lambda servicios, **kw: recibido.update(servicios=servicios, **kw) or RESPUESTA_IA)
+    monkeypatch.setattr(lote, "medir_legibilidad", lambda url, html=None: {"url": url, "fecha": "2026-09-30", "robots": {}})
+    lote._medir(_lead(empresa="Clemsa", url="https://clemsa.cl", dominio="clemsa.cl", ciudad="San Bernardo"))
+    assert recibido["servicios"] == ["venta de maquinarias equipos y repuestos"]
+    assert (recibido["origen_servicio"], recibido["ciudad"]) == ("title", "San Bernardo")
+
+
+def test_english_uc_usa_su_sitio_real_y_conserva_el_dominio_guardado(monkeypatch):
+    lote = _cargar()
+    pedidas, recibido = [], {}
+    monkeypatch.setattr(lote, "_portada", lambda url: pedidas.append(url) or (200, "<h1>Cursos de inglés</h1>"))
+    monkeypatch.setattr(lote, "consultar_ia", lambda servicios, **kw: recibido.update(kw) or RESPUESTA_IA)
+    monkeypatch.setattr(lote, "medir_legibilidad", lambda url, html=None: pedidas.append(url) or {"url": url, "fecha": "2026-09-30", "robots": {}})
+    lote._medir(_lead(empresa="English UC", url="https://uc.cl", dominio="uc.cl"))
+    assert pedidas == ["https://english.uc.cl", "https://english.uc.cl"]
+    assert recibido["dominio"] == "uc.cl" and recibido["origen_servicio"] == "h1"
