@@ -11,7 +11,7 @@ HALLAZGO = [{
 
 BORRADOR_OK = """Hola Alvaro,
 
-Vi que el origen de Metrowan carga el contenido principal en 4.8 s para usuarios reales.
+Vi que el sitio de Metrowan carga el contenido principal en 4.8 s para usuarios reales.
 
 ¿Tiene sentido mirarlo?
 
@@ -48,7 +48,7 @@ def test_quince_html_no_autoriza_quince_horas():
 
 
 def test_acepta_4_coma_8_segundos():
-    texto = "Hola Alvaro,\n\nEl origen tarda 4,8 segundos.\n\nCristina | Aura Studio"
+    texto = "Hola Alvaro,\n\nEl sitio tarda 4,8 segundos.\n\nCristina | Aura Studio"
     assert validar(texto, HALLAZGO, empresa="Grupo Metrowan", contacto="Alvaro Valenzuela") == []
 
 
@@ -61,7 +61,7 @@ def test_rechaza_promesa_de_ranking_y_de_aparicion_en_ia():
 
 def test_rechaza_automatizacion_y_nombres_que_no_estan():
     auto = BORRADOR_OK + "\nEn Aura Studio automatizamos los reportes."
-    marca = "Hola Alvaro,\n\nVi que trabajan con Under Armour y el origen tarda 4.8 s.\n\nCristina | Aura Studio"
+    marca = "Hola Alvaro,\n\nVi que trabajan con Under Armour y el sitio tarda 4.8 s.\n\nCristina | Aura Studio"
     assert "automatizacion" in validar(auto, HALLAZGO, empresa="Grupo Metrowan", contacto="Alvaro")
     razones = validar(marca, HALLAZGO, empresa="Grupo Metrowan", contacto="Alvaro")
     assert "afirmacion_fuera_de_hallazgos" in razones
@@ -69,3 +69,77 @@ def test_rechaza_automatizacion_y_nombres_que_no_estan():
 
 def test_borrador_vacio_no_se_rechaza():
     assert validar("", HALLAZGO, empresa="Grupo Metrowan", contacto="Alvaro") == []
+
+
+AI = [{
+    "texto": (
+        "Le preguntamos a ChatGPT «¿Qué agencia de marketing digital me recomiendas en Santiago, Chile?» "
+        "y recomendó a Bigbuda, LaGencia y Urban Marketing. No mencionó a DIVE."
+    ),
+    "evidencia": "ChatGPT, 2026-09-30, Chile, es. Recomendó: Bigbuda, LaGencia, Urban Marketing.",
+    "fuente": "Prueba en vivo con ChatGPT",
+    "fecha": "2026-09-30",
+    "nivel": "observado",
+    "consecuencia": "Quien le pregunta a una IA por este servicio recibe a la competencia.",
+}]
+
+BORRADOR_IA = """Hola Camila,
+
+Con una herramienta de análisis de crecimiento orgánico le preguntamos a ChatGPT qué agencia de marketing digital recomienda en Santiago, y recomendó a Bigbuda, LaGencia y Urban Marketing. No mencionó a DIVE.
+
+¿Tiene sentido mirarlo?
+
+Si este momento no es el indicado, con saber eso me sirve.
+
+Cristina | Aura Studio | aurathinking.com
+"""
+
+
+def test_el_gancho_con_chatgpt_pasa_sin_cifras():
+    assert validar(BORRADOR_IA, AI, empresa="DIVE", contacto="Camila Venegas") == []
+
+
+def test_nombrar_la_ia_no_es_promesa_pero_prometer_si():
+    hecho = BORRADOR_IA + "\nChatGPT no mencionó a DIVE y Gemini tampoco lo citó."
+    assert "promesa_aparicion_ia" not in validar(hecho, AI, empresa="DIVE", contacto="Camila")
+    for promesa in (
+        "Con nosotros ChatGPT va a recomendar a DIVE.",
+        "Vamos a lograr que Gemini te mencione.",
+        "Te garantizamos aparecer en ChatGPT.",
+        "Así aparecerás en la IA.",
+    ):
+        assert "promesa_aparicion_ia" in validar(BORRADOR_IA + "\n" + promesa, AI, empresa="DIVE", contacto="Camila"), promesa
+
+
+def test_rechaza_jerga_y_nombres_de_herramientas():
+    for palabra in (
+        "ms", "milisegundos", "LCP", "HTML", "Wayback", "DataForSEO", "PageSpeed", "Serper", "Labs",
+        "intersecciones", "origen", "crawler", "schema",
+    ):
+        razones = validar(BORRADOR_IA + f"\nSegún {palabra} hay algo.", AI, empresa="DIVE", contacto="Camila")
+        assert "jerga_tecnica" in razones, palabra
+    assert "jerga_tecnica" not in validar(BORRADOR_IA + "\nLa IA lo ve distinto.", AI, empresa="DIVE", contacto="Camila")
+    assert "jerga_tecnica" not in validar(BORRADOR_IA + "\nSolo mensajes y términos.", AI, empresa="DIVE", contacto="Camila")
+
+
+MEDIDAS = [{
+    "texto": "El sitio carga el contenido principal en 4.8 s y la portada muestra 8 palabras a quien no ejecuta JavaScript. Google marca 2.5 s como bueno.",
+    "evidencia": "4.8 s; 8 palabras; 2.5 s.", "fuente": "campo", "fecha": "2026-09-30",
+    "nivel": "observado", "consecuencia": "Quien entra espera.",
+}]
+
+
+def test_un_solo_dato_medido_por_borrador():
+    dos = "Hola Alvaro,\n\nEl sitio tarda 4,8 segundos y la portada muestra 8 palabras.\n\nCristina | Aura Studio"
+    assert "mas_de_un_dato" in validar(dos, MEDIDAS, empresa="X", contacto="Alvaro")
+    uno = "Hola Alvaro,\n\nEl sitio tarda 4,8 segundos.\n\nCristina | Aura Studio"
+    assert validar(uno, MEDIDAS, empresa="X", contacto="Alvaro") == []
+    umbral = "Hola Alvaro,\n\nEl sitio tarda 4,8 segundos y Google pide 2,5 s.\n\nCristina | Aura Studio"
+    assert "mas_de_un_dato" not in validar(umbral, MEDIDAS, empresa="X", contacto="Alvaro")
+    solo_umbral = "Hola Alvaro,\n\nGoogle pide 2,5 s.\n\nCristina | Aura Studio"
+    assert "mas_de_un_dato" not in validar(solo_umbral, MEDIDAS, empresa="X", contacto="Alvaro")
+
+
+def test_una_fecha_no_cuenta_como_segundo_dato():
+    texto = "Hola Alvaro,\n\nEl 30 de septiembre de 2026 el sitio tardó 4,8 segundos.\n\nCristina | Aura Studio"
+    assert "mas_de_un_dato" not in validar(texto, MEDIDAS, empresa="X", contacto="Alvaro")

@@ -36,22 +36,29 @@ Eso no se conserva: el pitch de automatización, Aura Flow, Aura Transform, y cu
 
 Estructura fija, frases nuevas en cada borrador. Si dos del día comparten una oración, reescribe una.
 
-1. Primera línea, humana y de esta empresa. Cabe el hallazgo medido, con el número tal como está en `evidencia`. Show, don't tell.
-2. Antes del dato, una validación de algo que el hallazgo ya muestra que hacen. El problema se enmarca en el entorno (Google, el celular, el cambio de la portada), no en un error del lector.
-3. Un solo dato. La brecha queda abierta: no expliques el servicio, no des el precio, no listes paquetes.
+El gancho es el hallazgo de IA: es el primero de la lista `hallazgos` de la fila (lo que respondió ChatGPT o Gemini cuando se les hizo la pregunta de un comprador). Si la fila no trae hallazgo de IA, usa el primero que traiga. Preséntalo como algo que encontraste con la herramienta de análisis de crecimiento orgánico de Cristina («con una herramienta de análisis de crecimiento orgánico que armó Cristina le preguntamos a ChatGPT...»). No menciones Google.
+
+1. Primera línea, humana y de esta empresa. Cabe el hallazgo medido, tal como está en `texto` y `evidencia`: la pregunta, a quién recomendó la IA y que no mencionó a la empresa. Show, don't tell.
+2. Antes del dato, una validación de algo que el hallazgo ya muestra que hacen. El problema se enmarca en el entorno (lo que responden las IAs, el celular), no en un error del lector.
+3. Un solo dato. La brecha queda abierta: no expliques el servicio, no des el precio, no listes paquetes. Si el hallazgo es de velocidad, di los segundos con un decimal (4,8 segundos), nunca milisegundos. Una sola cifra por borrador; el umbral de 2,5 s solo va junto a los segundos medidos.
 4. Un CTA que se responde con sí, no o cuéntame más. Nada de menú (llamada, demo, info). Nada de «¿te cuento en 3 minutos?» si el 3 no está en la fila.
 5. Una sola frase BYAF, después del CTA. Una. No apiles otra liberación.
 6. Firma: `Cristina | Aura Studio | aurathinking.com`
 
 Ninguna oración llega a 35 palabras. El cuerpo queda bajo unas 100 palabras. Cero adjetivos emocionales en el centro. Cero urgencia y cero «tus competidores ya lo hacen».
 
+Lenguaje de negocio, sin jerga. Si el hallazgo trae un término técnico, tradúcelo a lo que le pasa al cliente de esa empresa.
+
 `tipo_apertura` de estos borradores es `dato`: la hipótesis activa del período ya está en la columna `hipotesis`. No la cambies. `cta` guarda la pregunta que usaste, sin el BYAF.
 
 ## Prohibido en el texto
 
 - Cifras que no estén en `evidencia`, `texto`, `fuente` o `fecha` de esa fila. Copia el número medido. No lo redondees a otra unidad.
+- Más de un dato medido por borrador.
 - Prometer ranking, primer lugar, página 1 o una posición.
-- Prometer que una IA va a mencionar o citar la marca.
+- Prometer que una IA va a mencionar, citar o recomendar la marca. Contar lo que respondió hoy una IA sí se puede; prometer lo que responderá, no.
+- Jerga y nombres de herramientas: ms, milisegundos, LCP, HTML, Wayback, DataForSEO, PageSpeed, Serper, Labs, intersecciones, origen, crawler, schema. Los únicos nombres de herramienta permitidos son el motor de IA al que se le preguntó: ChatGPT o Gemini (y «IA»).
+- Las señales de cambio de portada (Wayback) y de subdominio nuevo son internas: no van en el borrador.
 - Automatización, automatizar, automação, automate, Aura Flow, Aura Transform.
 - Nombres de clientes, partners o marcas que no estén escritos en los hallazgos.
 - Precios. Siguen pendientes de Cristina.

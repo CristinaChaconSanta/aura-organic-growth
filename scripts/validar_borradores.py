@@ -1,6 +1,7 @@
 """Pasa el validador por cada borrador redactado. No envía.
 
-Si hay una razón, la fila queda rechazada. Aprobar sigue siendo de Cristina.
+Si hay una razón (cifra sin fuente, promesa, jerga o más de un dato), la fila
+queda rechazada. Aprobar sigue siendo de Cristina.
 """
 
 from __future__ import annotations

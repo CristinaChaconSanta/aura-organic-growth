@@ -14,6 +14,8 @@ RAZONES = (
     "promesa_aparicion_ia",
     "automatizacion",
     "afirmacion_fuera_de_hallazgos",
+    "jerga_tecnica",
+    "mas_de_un_dato",
 )
 
 _PERMITIDOS = frozenset({"cristina", "aura", "studio"})
@@ -29,12 +31,25 @@ _RANKING = re.compile(
     r"garantiz\w*\s+(?:el\s+)?(?:primer|ranking|posici)",
     re.IGNORECASE,
 )
+# Nombrar a ChatGPT o Gemini es el gancho y se permite. Se rechaza prometer que
+# una IA va a mencionar, citar o recomendar al negocio.
+_MOTOR = r"(?:chat\s*gpt|gemini|perplexity|claude|\bia\b|inteligencia artificial)"
 _IA = re.compile(
-    r"chatgpt|chat\s*gpt|gemini|perplexity|"
-    r"apare(?:cer|zcas|ce)\s+en\s+(?:la\s+)?(?:ia\b|inteligencia artificial)|"
-    r"(?:la\s+ia|inteligencia artificial|chatgpt|gemini|perplexity).{0,40}(?:mencion|cit)|"
-    r"(?:mencion|cit).{0,40}(?:la\s+ia|inteligencia artificial|chatgpt|gemini|perplexity)",
-    re.IGNORECASE | re.DOTALL,
+    r"(?:va|vas|van|vamos|vai|v[aã]o)\s+(?:a\s+)?(?:mencionar|citar|recomendar|nombrar|aparecer)|"
+    r"\b(?:mencionar|citar|recomendar|aparecer)(?:[aá][sn]?|emos)\b|"
+    r"\b(?:ir[aá]|ser[aá])\s+(?:mencionar|citad|recomendad)\w*|"
+    r"apare(?:cer|zcas|zca|zcan)\s+en\s+(?:la\s+)?" + _MOTOR + r"|"
+    r"(?:hacer|lograr|conseguir|ayud\w+\s+a)\s+(?:que\s+)?[^.!?\n]{0,60}?(?:aparec|mencion|cit|recomien)\w*|"
+    r"(?:garantiz\w*|asegur\w*|promet\w*|garant\w+)[^.!?\n]{0,60}(?:aparec|mencion|cit|recomend|" + _MOTOR + r")",
+    re.IGNORECASE,
+)
+_JERGA = re.compile(
+    r"(?<![a-z0-9])(?:ms|milisegundos?|milissegundos?|lcp|html|wayback|dataforseo|pagespeed|page\s+speed|"
+    r"serper|labs|intersecciones|origen(?:es)?|origem|crawlers?|schema)(?![a-z0-9])"
+)
+_FECHA = re.compile(
+    r"\d{4}-\d{2}-\d{2}|\b\d{1,2}\s+de\s+[a-zA-Záéíóúñ]+(?:\s+de\s+\d{4})?|\b20\d{2}\b",
+    re.IGNORECASE,
 )
 _AUTO = re.compile(
     r"automatiz|automaç|automacao|automate|automation|aura\s+flow|aura\s+transform",
@@ -118,10 +133,31 @@ def _cifra_sin_fuente(borrador: str, hallazgos: list[dict]) -> bool:
     return False
 
 
+def _cuatro_palabras(texto: str) -> set[tuple[str, ...]]:
+    palabras = re.findall(r"\w+", _plano(texto))
+    return {tuple(palabras[i : i + 4]) for i in range(len(palabras) - 3)}
+
+
 def _cita_medicion(borrador: str, hallazgos: list[dict]) -> bool:
+    """Cita una cifra de la fila o repite, con cuatro palabras seguidas, lo que la fila midió."""
     if not hallazgos:
         return False
-    return any(_cifra_esta(numero, unidad, hallazgos) for numero, unidad in _pares(borrador))
+    if any(_cifra_esta(numero, unidad, hallazgos) for numero, unidad in _pares(borrador)):
+        return True
+    return bool(_cuatro_palabras(borrador) & _cuatro_palabras(_blob(hallazgos)))
+
+
+def _jerga(borrador: str) -> bool:
+    return bool(_JERGA.search(_plano(borrador)))
+
+
+def _mas_de_un_dato(borrador: str) -> bool:
+    """Más de una cifra distinta. El umbral de 2,5 s solo acompaña a los segundos medidos."""
+    sin_fechas = _FECHA.sub(" ", borrador or "")
+    numeros = {_normalizar_numero(h.group("num")) for h in _CIFRA.finditer(sin_fechas)}
+    if "2.5" in numeros and len(numeros) > 1:
+        numeros.discard("2.5")
+    return len(numeros) > 1
 
 
 def _cifra_en_hallazgo(numero: str, unidad: str, pares: set[tuple[str, str]], texto: str) -> bool:
@@ -181,6 +217,10 @@ def validar(
         razones.append("promesa_aparicion_ia")
     if _AUTO.search(texto):
         razones.append("automatizacion")
+    if _jerga(texto):
+        razones.append("jerga_tecnica")
+    if _mas_de_un_dato(texto):
+        razones.append("mas_de_un_dato")
     blob = _blob(hallazgos)
     if not _cita_medicion(texto, hallazgos) or _nombres_fuera(texto, blob, _permitidos(empresa, contacto)):
         razones.append("afirmacion_fuera_de_hallazgos")

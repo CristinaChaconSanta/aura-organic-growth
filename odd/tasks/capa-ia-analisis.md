@@ -25,7 +25,7 @@ The batch measured only speed and Google searches. The AI layer (axiom: every bu
 - [x] T2 AI legibility module + tests (legibilidad_ia.py, render.paginas_renderizadas; tests/test_legibilidad_ia.py)
 - [x] T3 Findings: AI first, plain language; maturity fix + tests (hallazgos_de_ia, hallazgos_de_legibilidad, hallazgos.ORDEN_IA, madurez.clasificar(llms_txt=))
 - [x] T4 Wire into correr_lote and staging refresh (correr_lote._paso_ia, staging.hallazgos_de_ia_y_legibilidad; tests/test_correr_lote.py)
-- [ ] T5 Validator jargon rule + tests; Grok instructions; CLAUDE.md
+- [x] T5 Validator jargon rule + tests; Grok instructions; CLAUDE.md
 - [ ] T6 Run on the 6 current leads, refresh organic_borradores
 
 ## Route
@@ -38,3 +38,4 @@ Created 2026-09-30.
 - T2 done 2026-09-30: robots for 7 AI bots, llms.txt, words without JS vs rendered, JSON-LD types; no render => 'no determinable'.
 - T3 done 2026-09-30: AI findings rank first; absence in a cited list only if the page was fetched and had content; maturity counts llms.txt or rich JSON-LD as one signal.
 - T4 done 2026-09-30: IA step runs first for every lead with a web (low maturity included); refresh rebuilds IA findings from the resumen record and puts them first.
+- T5 done 2026-09-30: validar() adds jerga_tecnica and mas_de_un_dato; promesa_aparicion_ia now only flags promises (naming ChatGPT/Gemini is allowed); citing a finding no longer requires a number (four consecutive words from the finding also count). T6 not run: paid calls are Cristina's decision.

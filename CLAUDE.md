@@ -47,7 +47,7 @@ hace.
 
 | Fase | Qué se hace | Entregable | Métrica |
 |---|---|---|---|
-| 1. Descubrir | Velocidad, auditoría GEO/SEO, prueba con IA, reseñas, formulario/CRM | Diagnóstico con datos reales | Solo datos medidos |
+| 1. Descubrir | Primero la prueba en vivo con IA (ChatGPT y Gemini) y la lectura del sitio para IA; después velocidad, búsquedas, auditoría GEO/SEO, reseñas, formulario/CRM | Diagnóstico con datos reales | Solo datos medidos |
 | 2. Definir | Elegir los 5 problemas que más cuestan | Ficha con hallazgos y consecuencia comercial | Línea base: LCP, leads/mes, mención en IA |
 | 3. Desarrollar | Proponer y probar en staging | Propuesta + cambios en staging + capturas | Mejora medida en staging |
 | 4. Entregar | Publicar lo aprobado y medir | Cambio en producción + informe | LCP ≤ 2,5 s; leads vs. línea base |
@@ -118,6 +118,25 @@ servicio pagado.
   de lugar. Se guarda solo el `place_id`. No se precarga ni se almacena
   el resto del contenido de Places. Si una nota o las reseñas salen al
   prospecto sin mapa, llevan el logo de Google.
+- **Prueba en vivo con IA:** DataForSEO LLM Scraper, ChatGPT y Gemini, una
+  pregunta de comprador («¿Qué [servicio] me recomiendas en [ciudad], [país]?»)
+  solo con servicio y ciudad observados (`observados.py`). USD 0,004 por
+  pregunta; con saldo menor a USD 0,10 no se llama y queda «sin dato». Cada
+  respuesta guarda fecha, país, idioma, si menciona al lead, a quién recomienda
+  y qué fuentes cita. «El lead no está en esa lista» solo si se bajó la página
+  citada y se buscó su dominio y su marca. Nunca se promete que una IA lo
+  mencione.
+- **Lectura del sitio para IA:** reglas de robots.txt para GPTBot,
+  OAI-SearchBot, ChatGPT-User, ClaudeBot, PerplexityBot, Google-Extended y
+  CCBot; llms.txt (se informa si está o no, jamás como promesa de citas);
+  palabras de la portada sin JavaScript frente a las renderizadas; tipos
+  JSON-LD. Sin render, «no determinable». Un sitio con llms.txt o datos
+  estructurados ricos no es de madurez baja.
+- **Borradores:** el gancho es el hallazgo de IA, presentado como encontrado con
+  la herramienta de análisis de crecimiento orgánico de Cristina. Lenguaje de
+  negocio: sin jerga ni nombres de herramientas (solo el motor de IA
+  consultado), segundos con un decimal y un solo dato medido. El validador
+  rechaza lo contrario.
 - **Búsquedas comerciales:** DataForSEO SERP, cola estándar (USD 0,0006
   por búsqueda de referencia). Hasta 30 consultas del tipo «[servicio] en
   [ciudad]», «precio [servicio]» y «mejor [servicio] en [ciudad]», solo
@@ -142,7 +161,8 @@ servicio pagado.
   si la página la trae. Expansión, sede y lanzamiento solo con evidencia.
   La pauta activa la anota Cristina a mano.
 - **Hallazgos:** cada uno con nivel observado, inferido o no determinable.
-  Los 5 se ordenan por consecuencia: velocidad y errores de todo el sitio
+  Los 5 se ordenan por consecuencia: primero los de IA (prueba en vivo y
+  lectura del sitio para IA), después velocidad y errores de todo el sitio
   antes que el detalle de una página. Nunca como hecho: tráfico estimado,
   backlinks totales, ventas perdidas, puntaje GEO.
 - **Cifras estimadas sí entran, rotuladas.** Tráfico o volumen estimado
@@ -169,6 +189,10 @@ servicio pagado.
 
 **Cadencia:** lotes de 20 leads por producto; medir respuestas cada semana;
 decidir con datos qué producto sigue.
+
+**Orden de Descubrir:** 1) prueba en vivo con IA y 2) lectura del sitio para IA
+(`src/aura_organic_growth/ia.py` y `legibilidad_ia.py`), después 3) velocidad y
+4) búsquedas. Corre para todo lead con web, también con madurez baja.
 
 **Definición de terminado por fase:** Descubrir = todas las mediciones con
 fecha o marcadas "sin dato". Definir = 5 hallazgos con consecuencia y línea
