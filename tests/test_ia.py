@@ -129,6 +129,15 @@ def test_servicio_literal_de_la_portada_sin_la_marca():
     assert h1 == {"servicio": "cursos de inglés para adultos", "campo": "h1"}
 
 
+def test_prueba_otras_oraciones_y_no_repite_la_ciudad():
+    html = (
+        "<title>OutLoud - Houston Event Staffing Agency</title>"
+        "<meta name='description' content='Agencia Outloud Marketing. Personal para eventos y ferias.'>"
+    )
+    r = servicio_de_sitio(html, empresa="OutLoud Marketing", dominio="outloudmarketing.com", ciudad="Houston")
+    assert r == {"servicio": "personal para eventos y ferias", "campo": "meta"}
+
+
 def test_sin_frase_de_servicio_queda_sin_dato():
     assert servicio_de_sitio(None, empresa="X", dominio="x.cl") is None
     assert servicio_de_sitio("<title>Terra</title><h1>Hola</h1>", empresa="Terra", dominio="terra.io") is None

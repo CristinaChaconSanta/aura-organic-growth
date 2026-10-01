@@ -105,10 +105,13 @@ def _meta_description(html: str) -> str:
     return ""
 
 
-def _frase_de_servicio(texto: str, marcas: set[str]) -> str:
+def _frase_de_servicio(texto: str, marcas: set[str], ciudad: str = "") -> str:
     """Un segmento del texto sin la marca, tal como está escrito. Vacío si no es una frase de servicio."""
-    primera = re.split(r"[.!?](?:\s|$)", texto or "", maxsplit=1)[0]
-    for segmento in _SEPARADOR.split(primera):
+    segmentos = [
+        seg for oracion in re.split(r"[.!?](?:\s|$)", texto or "") for seg in _SEPARADOR.split(oracion)
+    ]
+    lugar = plano(ciudad_guardada(ciudad))
+    for segmento in segmentos:
         limpio = segmento.strip(" \t-–—|·•:,;.\"'«»")
         clave = plano(limpio)
         if not limpio or clave in marcas or clave in _GENERICAS:
@@ -117,11 +120,15 @@ def _frase_de_servicio(texto: str, marcas: set[str]) -> str:
             continue  # la marca va mezclada con el texto: no se corta ni se reescribe
         if not 2 <= len(limpio.split()) <= MAX_PALABRAS_SERVICIO:
             continue
+        if lugar and re.search(rf"(?<![a-z0-9]){re.escape(lugar)}(?![a-z0-9])", clave):
+            continue  # la ciudad ya la pone la pregunta
         return limpio[0].lower() + limpio[1:]
     return ""
 
 
-def servicio_de_sitio(html: str | None, *, empresa: str = "", dominio: str = "") -> dict | None:
+def servicio_de_sitio(
+    html: str | None, *, empresa: str = "", dominio: str = "", ciudad: str = ""
+) -> dict | None:
     """Servicio con el texto literal de la portada: title, meta description o H1, en ese orden.
 
     Quita el nombre de la marca. {"servicio", "campo"} o None si ninguno da una frase.
@@ -136,7 +143,7 @@ def servicio_de_sitio(html: str | None, *, empresa: str = "", dominio: str = "")
         ("meta", _meta_description(html)),
         ("h1", _texto_limpio(h1.group(1)) if h1 else ""),
     ):
-        frase = _frase_de_servicio(texto, marcas)
+        frase = _frase_de_servicio(texto, marcas, ciudad)
         if frase:
             return {"servicio": frase, "campo": campo}
     return None

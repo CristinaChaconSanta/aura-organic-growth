@@ -105,18 +105,20 @@ def _seguro(llamada, fallo: dict) -> dict:
         return fallo
 
 
+def servicio_y_ciudad(lead: dict, dominio: str, html: str | None) -> tuple[list[str], str, str]:
+    """Servicio observado por Cristina; si no, el texto literal de la portada. Ciudad guardada, o solo el país."""
+    observado = observado_de(dominio)
+    if observado:
+        return observado["servicios"], observado["ciudad"], "observados"
+    hallado = servicio_de_sitio(html, empresa=lead["empresa"], dominio=dominio, ciudad=lead["ciudad"])
+    return ([hallado["servicio"]] if hallado else []), lead["ciudad"], (hallado["campo"] if hallado else "sin dato")
+
+
 def _paso_ia(lead: dict, url: str, html: str | None) -> tuple[dict, dict, list[dict]]:
     """Primer paso de la medición: prueba con IA y lectura del sitio para IA. Sin web no corre."""
     # El dominio guardado decide el cruce por marca; la url puede ser el sitio real (ver observados.URLS).
     dominio = lead["dominio"] or urlparse(_origen(url, "")).netloc.removeprefix("www.")
-    observado = observado_de(dominio)
-    if observado:
-        servicios, ciudad, origen = observado["servicios"], observado["ciudad"], "observados"
-    else:
-        # Servicio del texto literal de la portada; ciudad guardada en la ficha, o solo el país.
-        hallado = servicio_de_sitio(html, empresa=lead["empresa"], dominio=dominio)
-        servicios = [hallado["servicio"]] if hallado else []
-        ciudad, origen = lead["ciudad"], hallado["campo"] if hallado else "sin dato"
+    servicios, ciudad, origen = servicio_y_ciudad(lead, dominio, html)
     ia = _seguro(
         lambda: consultar_ia(
             servicios,

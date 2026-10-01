@@ -92,9 +92,13 @@ def _serper(seleccion: list[dict], hoy: date) -> list[dict]:
     return registros
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    """Con lead_id como argumentos, solo esos leads. Una fila rechazada no se toca."""
     hoy = date.today()
     seleccion = json.loads((ROOT / "data" / "lotes" / "seleccion.json").read_text(encoding="utf-8"))
+    ids = {int(a) for a in (argv or []) if a.isdigit()}
+    if ids:
+        seleccion = [lead for lead in seleccion if lead["lead_id"] in ids]
     registros = _serper(seleccion, hoy)
     destino = ROOT / "data" / "lotes" / f"serper-lote-{hoy.isoformat()}.json"
     destino.write_text(json.dumps(registros, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -115,14 +119,14 @@ def main() -> None:
         resp = pedir(
             "PATCH",
             "/rest/v1/organic_borradores",
-            params={"lead_id": f"eq.{int(lead['lead_id'])}"},
+            params={"lead_id": f"eq.{int(lead['lead_id'])}", "estado": "neq.rechazado"},
             headers={"Content-Type": "application/json", "Prefer": "return=representation"},
             json=parche,
         )
         resp.raise_for_status()
         filas = resp.json()
         if not filas:
-            print(f"{lead.get('empresa')} no está en organic_borradores", flush=True)
+            print(f"{lead.get('empresa')} no está en organic_borradores o está rechazada", flush=True)
             continue
         actualizadas += 1
         print(
@@ -133,4 +137,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
