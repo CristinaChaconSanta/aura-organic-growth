@@ -60,7 +60,7 @@ else
   warn "gitleaks not installed (brew install gitleaks)"
 fi
 if [ -x .venv/bin/pip-audit ]; then
-  if .venv/bin/pip-audit -q >/dev/null 2>&1; then
+  if .venv/bin/pip-audit --skip-editable --progress-spinner off >/dev/null 2>&1; then
     ok "pip-audit: no known vulnerable dependencies"
   else
     fail "pip-audit found vulnerable dependencies (run: .venv/bin/pip-audit)"
