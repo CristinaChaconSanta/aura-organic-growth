@@ -23,7 +23,7 @@ def prohibido(texto: str) -> bool:
 
 
 # La prueba con IA va primero: es el gancho. Sigue la lectura del sitio para IA.
-ORDEN_IA = ("ia_prueba", "ia_fuentes", "ia_js", "ia_robots", "ia_schema", "ia_llms")
+ORDEN_IA = ("ia_prueba", "ia_fuentes", "ia_js", "ia_js_campos", "ia_robots", "ia_acceso", "ia_schema", "ia_llms")
 
 
 def _clave(hallazgo: dict) -> tuple[int, int, int]:

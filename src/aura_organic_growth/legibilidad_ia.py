@@ -1,10 +1,12 @@
 """Qué tan legible es el sitio para los robots de IA. Solo medición.
 
-Reglas de robots.txt para los bots de IA, llms.txt, palabras de la portada
-sin JavaScript frente a las que aparecen al renderizar, y tipos JSON-LD.
+Reglas de robots.txt para los bots de IA, si el servidor deja pasar a esos
+bots, llms.txt, palabras y campos (title, H1, meta description) de la portada
+sin JavaScript frente a la página renderizada, y tipos JSON-LD.
 llms.txt se mide y se informa; no se vende como promesa de que una IA cite.
 Una ausencia solo entra desde la página renderizada: sin render, queda
-«no determinable».
+«no determinable». El acceso de bots se prueba con su firma, no desde su IP:
+es inferido, y no se intenta saltar ningún bloqueo.
 """
 
 from __future__ import annotations
@@ -20,6 +22,19 @@ BOTS = (
     "Google-Extended", "CCBot",
 )
 UA = {"User-Agent": "AuraOrganicGrowth/1.0 (diagnostico)"}
+FIRMAS_BOTS = {
+    "GPTBot": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)",
+    "OAI-SearchBot": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot",
+    "ClaudeBot": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)",
+    "PerplexityBot": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)",
+}
+CODIGOS_BLOQUEO = frozenset({401, 403, 429, 503})
+_DESAFIO = ("<title>just a moment...", "/cdn-cgi/challenge-platform/", "attention required! | cloudflare")
+_TITLE = re.compile(r"<title[^>]*>(.*?)</title\s*>", re.IGNORECASE | re.DOTALL)
+_H1 = re.compile(r"<h1\b[^>]*>(.*?)</h1\s*>", re.IGNORECASE | re.DOTALL)
+_META = re.compile(r"<meta\b[^>]*>", re.IGNORECASE)
+_ATRIBUTO = re.compile(r"""([a-zA-Z:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')""")
+CAMPOS = ("title", "h1", "meta_description")
 # Pocas palabras sin JavaScript y al renderizar aparece al menos el doble.
 POCAS_SIN_JS = 150
 MINIMO_EXTRA_CON_JS = 100
@@ -151,6 +166,53 @@ def leer_llms_txt(http, origen: str) -> bool | None:
     return bool(texto.strip()) and not es_html(texto, tipo)
 
 
+def _pedir_como(http, url: str, firma: str):
+    """Código HTTP, «desafio» si es la página de verificación de Cloudflare, o None sin respuesta."""
+    try:
+        resp = http.get(url, headers={"User-Agent": firma}, timeout=20, allow_redirects=True)
+    except Exception:  # noqa: BLE001
+        return None
+    estado = getattr(resp, "status_code", 0)
+    muestra = str(getattr(resp, "text", "") or "")[:5000].casefold()
+    return "desafio" if any(m in muestra for m in _DESAFIO) else estado
+
+
+def acceso_bots(http, origen: str) -> tuple[dict[str, dict], str]:
+    """Pide la portada con la firma de cada bot de IA. «bloqueado» solo si falla dos veces y la visita normal no."""
+    if _pedir_como(http, origen, UA["User-Agent"]) != 200:
+        return {}, "no determinable"
+    salida = {}
+    for bot, firma in FIRMAS_BOTS.items():
+        intentos = [_pedir_como(http, origen, firma)]
+        if intentos[0] != 200:
+            intentos.append(_pedir_como(http, origen, firma))
+        bloqueado = all(i == "desafio" or i in CODIGOS_BLOQUEO for i in intentos)
+        salida[bot] = {
+            "estado": "responde" if intentos[-1] == 200 else "bloqueado" if bloqueado else "no determinable",
+            "respuestas": ["sin respuesta" if i is None else str(i) for i in intentos],
+        }
+    return salida, "leido"
+
+
+def _texto(crudo: str) -> str:
+    return re.sub(r"\s+", " ", html_lib.unescape(_ETIQUETAS.sub(" ", crudo or ""))).strip()
+
+
+def campos_presentes(html: str) -> dict[str, bool]:
+    titulo = _TITLE.search(html or "")
+    meta = ""
+    for etiqueta in _META.findall(html or ""):
+        atributos = {k.lower(): (a or b) for k, a, b in _ATRIBUTO.findall(etiqueta)}
+        if atributos.get("name", "").lower() == "description":
+            meta = atributos.get("content", "")
+            break
+    return {
+        "title": bool(titulo and _texto(titulo.group(1))),
+        "h1": any(_texto(h) for h in _H1.findall(html or "")),
+        "meta_description": bool(_texto(meta)),
+    }
+
+
 def aparece_solo_con_js(sin_js: int | None, con_js: int | None) -> bool | None:
     if sin_js is None or con_js is None:
         return None
@@ -179,6 +241,9 @@ def medir(
         "aparece_solo_con_js": None,
         "schema_tipos": [],
         "schema_solo_con_js": [],
+        "campos_solo_con_js": [],
+        "acceso_bots": {},
+        "acceso_estado": "no determinable",
         "render": "no determinable",
     }
     if not origen:
@@ -186,6 +251,8 @@ def medir(
     http = session or __import__("requests")
     robots, estado = leer_robots(http, origen)
     base.update({"robots": robots or {}, "robots_estado": estado, "llms_txt": leer_llms_txt(http, origen)})
+    acceso, acceso_estado = acceso_bots(http, origen)
+    base.update({"acceso_bots": acceso, "acceso_estado": acceso_estado})
     if html is None:
         resp = _get(http, origen)
         if resp is not None and getattr(resp, "status_code", 0) == 200:
@@ -203,9 +270,13 @@ def medir(
     if renderizada:
         base["render"] = "ok"
         base["palabras_con_js"] = renderizada.get("palabras")
-        tipos_render = tipos_jsonld(str(renderizada.get("html") or ""))
+        html_render = str(renderizada.get("html") or "")
+        tipos_render = tipos_jsonld(html_render)
         base["schema_solo_con_js"] = [t for t in tipos_render if t not in crudo]
         base["schema_tipos"] = crudo + base["schema_solo_con_js"]
+        if html is not None and html_render:
+            sin, con = campos_presentes(html), campos_presentes(html_render)
+            base["campos_solo_con_js"] = [c for c in CAMPOS if con[c] and not sin[c]]
     base["aparece_solo_con_js"] = aparece_solo_con_js(base["palabras_sin_js"], base["palabras_con_js"])
     return base
 
@@ -228,6 +299,12 @@ _PT = {
     "llms_c": "É um sinal de ordem do site; não garante que nenhuma IA o cite.",
     "schema": "As páginas declaram dados estruturados do tipo {tipos}.",
     "schema_c": "Dão às IAs e aos buscadores uma descrição legível do negócio; não garantem menção.",
+    "campos": "{lista} da página inicial aparece só com JavaScript.",
+    "campos_varios": "{lista} da página inicial aparecem só com JavaScript.",
+    "campos_c": "Os robôs de IA que não executam JavaScript não veem esse texto ao ler a página.",
+    "nombres": {"title": "O título (title)", "h1": "o título principal (H1)", "meta_description": "a descrição para buscadores (meta description)"},
+    "acceso": "Quando a página inicial é pedida como faz o robô de {lista}, o servidor bloqueia; pedida de forma normal, carrega.",
+    "acceso_c": "Se o bloqueio também atinge os robôs reais, esses assistentes não conseguem ler o site para responder.",
     "y": "e",
 }
 _ES = {
@@ -243,6 +320,12 @@ _ES = {
     "llms_c": "Es una señal de orden del sitio; no garantiza que ninguna IA lo cite.",
     "schema": "Las páginas declaran datos estructurados de tipo {tipos}.",
     "schema_c": "Le dan a las IAs y a los buscadores una descripción legible del negocio; no garantizan mención.",
+    "campos": "{lista} de la portada aparece solo con JavaScript.",
+    "campos_varios": "{lista} de la portada aparecen solo con JavaScript.",
+    "campos_c": "Los robots de IA que no ejecutan JavaScript no ven ese texto al leer la portada.",
+    "nombres": {"title": "El título (title)", "h1": "el título principal (H1)", "meta_description": "la descripción para buscadores (meta description)"},
+    "acceso": "Cuando la portada se pide como lo hace el robot de {lista}, el servidor la bloquea; pedida de forma normal, carga.",
+    "acceso_c": "Si el bloqueo también alcanza a los robots reales, esos asistentes no pueden leer el sitio para responder.",
     "y": "y",
 }
 FUENTE_LECTURA = "Lectura del sitio"
@@ -270,6 +353,16 @@ def hallazgos_de_legibilidad(registro: dict | None, *, idioma: str = "es") -> li
             "evidencia": f"Palabras sin JavaScript: {sin}. Palabras con la página renderizada: {con}. {registro.get('url')}",
             "consecuencia": t["js_c"],
         })
+    campos = [c for c in CAMPOS if c in (registro.get("campos_solo_con_js") or [])]
+    if campos and registro.get("aparece_solo_con_js") is not True:
+        nombres = [t["nombres"][c] for c in campos]
+        nombres[0] = nombres[0][0].upper() + nombres[0][1:]
+        salida.append({
+            **base, "tipo": "ia_js_campos",
+            "texto": t["campos" if len(campos) == 1 else "campos_varios"].format(lista=_unir(nombres, t["y"])),
+            "evidencia": f"Ausentes en el HTML sin JavaScript y presentes al renderizar: {', '.join(campos)}. {registro.get('url')}",
+            "consecuencia": t["campos_c"],
+        })
     bloqueados = [b for b, v in (registro.get("robots") or {}).items() if v == "bloqueado"]
     if bloqueados:
         asistentes = list(dict.fromkeys(ASISTENTES.get(b, b) for b in bloqueados))
@@ -278,6 +371,20 @@ def hallazgos_de_legibilidad(registro: dict | None, *, idioma: str = "es") -> li
             "texto": t["robots"].format(lista=_unir(asistentes, t["y"])),
             "evidencia": f"robots.txt bloquea: {', '.join(bloqueados)}. {registro.get('url')}/robots.txt",
             "consecuencia": t["robots_c"],
+        })
+    # Si robots.txt ya lo cierra, ese hallazgo lo cubre.
+    negados = {
+        b: v for b, v in (registro.get("acceso_bots") or {}).items()
+        if v.get("estado") == "bloqueado" and b not in bloqueados
+    }
+    if negados:
+        asistentes = list(dict.fromkeys(ASISTENTES.get(b, b) for b in negados))
+        salida.append({
+            **base, "tipo": "ia_acceso", "nivel": "inferido",
+            "texto": t["acceso"].format(lista=_unir(asistentes, t["y"])),
+            "evidencia": "; ".join(f"{b}: {', '.join(v['respuestas'])}" for b, v in negados.items())
+                         + f". Visita normal: 200. Firma del bot imitada, no su IP. {registro.get('url')}",
+            "consecuencia": t["acceso_c"],
         })
     llms = registro.get("llms_txt")
     if llms is not None:

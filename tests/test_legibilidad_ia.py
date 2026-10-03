@@ -178,3 +178,89 @@ def test_datos_estructurados_solo_nombra_los_tipos_que_describen_el_negocio():
     (h,) = hallazgos_de_legibilidad(_registro(schema_tipos=["WebPage", "ReadAction", "Organization", "ListItem", "LocalBusiness"]))
     assert h["texto"] == "Las páginas declaran datos estructurados de tipo Organization y LocalBusiness."
     assert hallazgos_de_legibilidad(_registro(schema_tipos=["WebPage", "BreadcrumbList"])) == []
+
+
+# --- Acceso de bots de IA y campos que aparecen solo con JavaScript -------------
+
+from aura_organic_growth.legibilidad_ia import FIRMAS_BOTS, acceso_bots, campos_presentes  # noqa: E402
+
+DESAFIO = "<html><head><title>Just a moment...</title></head><body>/cdn-cgi/challenge-platform/</body></html>"
+
+
+class HttpPorFirma:
+    """Responde según el User-Agent: una lista de respuestas por bot, en orden."""
+
+    def __init__(self, base, por_bot):
+        self.base = base
+        self.por_bot = {bot: list(r) for bot, r in por_bot.items()}
+
+    def get(self, url, headers=None, timeout=None, allow_redirects=True):
+        firma = (headers or {}).get("User-Agent", "")
+        for bot, respuestas in self.por_bot.items():
+            if firma == FIRMAS_BOTS[bot]:
+                r = respuestas.pop(0) if len(respuestas) > 1 else respuestas[0]
+                if isinstance(r, Exception):
+                    raise r
+                return r
+        return self.base
+
+
+def test_bloqueo_solo_si_el_bot_falla_dos_veces_y_la_visita_normal_no():
+    http = HttpPorFirma(Resp(200, "<p>hola</p>"), {
+        "GPTBot": [Resp(403), Resp(403)],
+        "OAI-SearchBot": [Resp(200)],
+        "ClaudeBot": [OSError("se cortó"), Resp(200)],
+        "PerplexityBot": [Resp(200, DESAFIO), Resp(503, DESAFIO)],
+    })
+    acceso, estado = acceso_bots(http, "https://dive.cl")
+    assert estado == "leido"
+    assert acceso["GPTBot"] == {"estado": "bloqueado", "respuestas": ["403", "403"]}
+    assert acceso["OAI-SearchBot"]["estado"] == "responde"
+    assert acceso["ClaudeBot"] == {"estado": "responde", "respuestas": ["sin respuesta", "200"]}
+    assert acceso["PerplexityBot"]["estado"] == "bloqueado"
+
+
+def test_sin_visita_normal_no_se_afirma_bloqueo():
+    http = HttpPorFirma(Resp(403), {bot: [Resp(403)] for bot in FIRMAS_BOTS})
+    assert acceso_bots(http, "https://dive.cl") == ({}, "no determinable")
+    caidas = HttpPorFirma(Resp(200), {bot: [OSError("x"), OSError("x")] for bot in FIRMAS_BOTS})
+    acceso, _ = acceso_bots(caidas, "https://dive.cl")
+    assert {v["estado"] for v in acceso.values()} == {"no determinable"}
+
+
+def test_hallazgo_de_acceso_es_inferido_y_no_repite_robots():
+    acceso = {
+        "GPTBot": {"estado": "bloqueado", "respuestas": ["403", "403"]},
+        "ClaudeBot": {"estado": "bloqueado", "respuestas": ["desafio", "desafio"]},
+        "PerplexityBot": {"estado": "responde", "respuestas": ["200"]},
+    }
+    h = hallazgos_de_legibilidad(_registro(acceso_bots=acceso, robots={"ClaudeBot": "bloqueado"}))
+    robots, negado = h
+    assert robots["tipo"] == "ia_robots"
+    assert negado["tipo"] == "ia_acceso" and negado["nivel"] == "inferido"
+    assert negado["texto"] == (
+        "Cuando la portada se pide como lo hace el robot de ChatGPT, el servidor la bloquea; pedida de forma normal, carga."
+    )
+    assert "GPTBot: 403, 403" in negado["evidencia"] and "no su IP" in negado["evidencia"]
+    assert "ClaudeBot" not in negado["evidencia"]
+
+
+def test_campos_presentes_y_solo_con_js():
+    crudo = "<html><head><meta name='description' content=' '></head><body><h1> </h1></body></html>"
+    render = "<title>DIVE</title><meta content='Hacemos crecer tu marca' name='description'><h1>Hola <b>marca</b></h1>"
+    assert campos_presentes(crudo) == {"title": False, "h1": False, "meta_description": False}
+    assert campos_presentes(render) == {"title": True, "h1": True, "meta_description": True}
+    r = medir("https://dive.cl", html=crudo + "<p>" + "texto " * 200 + "</p>", session=Http({}),
+              renderizador=lambda urls: {urls[0]: {"palabras": 210, "html": render}}, hoy=HOY)
+    assert r["campos_solo_con_js"] == ["title", "h1", "meta_description"]
+    assert r["aparece_solo_con_js"] is False
+
+
+def test_hallazgo_de_campos_solo_si_la_portada_no_esta_vacia():
+    (h,) = hallazgos_de_legibilidad(_registro(campos_solo_con_js=["title", "h1"], aparece_solo_con_js=False))
+    assert h["texto"] == "El título (title) y el título principal (H1) de la portada aparecen solo con JavaScript."
+    assert h["tipo"] == "ia_js_campos" and h["nivel"] == "observado"
+    vacia = _registro(campos_solo_con_js=["title"], aparece_solo_con_js=True, palabras_sin_js=3, palabras_con_js=400)
+    assert [x["tipo"] for x in hallazgos_de_legibilidad(vacia)] == ["ia_js"]
+    (pt,) = hallazgos_de_legibilidad(_registro(campos_solo_con_js=["h1"]), idioma="pt-BR")
+    assert pt["texto"] == "O título principal (H1) da página inicial aparece só com JavaScript."
