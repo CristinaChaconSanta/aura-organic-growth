@@ -48,11 +48,14 @@ def clasificar(
     hoy: date | None = None,
     tiene_web: bool = True,
     llms_txt: bool | None = None,
+    ultima_publicacion: dict | None = None,
 ) -> dict:
     """La evidencia es la marca encontrada. Sin web, o sin ninguna señal, no se audita.
 
     llms.txt o datos estructurados ricos (Organization, LocalBusiness, FAQPage...) son
     una señal de sitio trabajado: cuentan como una sola, así que la madurez no es «baja».
+    La fecha del feed del blog (senales.ultima_publicacion) manda sobre una fecha
+    suelta en la portada; un feed sin publicar en 6 meses se anota y no suma.
     """
     hoy = hoy or date.today()
     if not tiene_web:
@@ -81,8 +84,17 @@ def clasificar(
     if llms_txt or schema:
         detalle = "llms.txt" if llms_txt else f"datos estructurados: {', '.join(schema)}"
         evidencia.append({"senal": "legibilidad IA", "nivel": "observado", "detalle": detalle})
-    blog = _fecha_reciente(html, hoy)
-    if blog:
+    feed = ultima_publicacion or {}
+    fecha_feed = date.fromisoformat(feed["fecha"]) if feed.get("nivel") == "observado" and feed.get("fecha") else None
+    if fecha_feed and 0 <= (hoy - fecha_feed).days <= 183:
+        evidencia.append({"senal": "blog activo", "nivel": "observado", "detalle": f"{fecha_feed.isoformat()} (feed {feed.get('url')})"})
+    elif fecha_feed:
+        evidencia.append({
+            "senal": "blog sin publicar",
+            "nivel": "observado",
+            "detalle": f"última publicación del feed: {fecha_feed.isoformat()} ({feed.get('url')})",
+        })
+    elif blog := _fecha_reciente(html, hoy):
         evidencia.append({"senal": "blog activo", "nivel": "observado", "detalle": blog})
     elif "/blog" in _plano(html):
         evidencia.append({
@@ -90,7 +102,7 @@ def clasificar(
             "nivel": "no determinable",
             "detalle": "hay enlace a blog y no hay fecha de los últimos 6 meses",
         })
-    senales = {item["senal"] for item in evidencia if item["nivel"] == "observado"}
+    senales = {item["senal"] for item in evidencia if item["nivel"] == "observado" and item["senal"] != "blog sin publicar"}
     if len(senales) >= 2:
         madurez = "alta"
     elif len(senales) == 1:

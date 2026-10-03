@@ -67,3 +67,22 @@ def test_senal_de_ia_suma_una_sola_vez_con_otra_senal():
     assert clasificar(html, hoy=HOY, llms_txt=True)["madurez"] == "alta"
     schema_y_llms = '<script type="application/ld+json">{"@type":"Organization"}</script>'
     assert clasificar(schema_y_llms, hoy=HOY, llms_txt=True)["madurez"] == "media"
+
+
+def test_el_feed_manda_sobre_una_fecha_suelta():
+    html = '<script src="https://www.googletagmanager.com/gtm.js"></script>'
+    feed = {"senal": "ultima publicacion", "nivel": "observado", "fecha": "2026-08-03", "url": "https://dive.cl/feed/"}
+    resultado = clasificar(html, hoy=HOY, ultima_publicacion=feed)
+    assert resultado["madurez"] == "alta"
+    blog = next(e for e in resultado["evidencia"] if e["senal"] == "blog activo")
+    assert blog["detalle"] == "2026-08-03 (feed https://dive.cl/feed/)"
+
+
+def test_feed_sin_publicar_en_seis_meses_se_anota_y_no_suma():
+    html = '<script src="https://www.googletagmanager.com/gtm.js"></script><time datetime="2026-08-01">'
+    viejo = {"senal": "ultima publicacion", "nivel": "observado", "fecha": "2025-11-02", "url": "https://dive.cl/feed/"}
+    resultado = clasificar(html, hoy=HOY, ultima_publicacion=viejo)
+    assert resultado["madurez"] == "media"
+    assert any(e["senal"] == "blog sin publicar" and "2025-11-02" in e["detalle"] for e in resultado["evidencia"])
+    sin_feed = clasificar(html, hoy=HOY, ultima_publicacion={"nivel": "no determinable", "fecha": None})
+    assert sin_feed["madurez"] == "alta"

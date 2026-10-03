@@ -2,15 +2,27 @@
 
 Wayback: dos digestos distintos de la portada son un cambio observado en
 el archivo, no un rediseño afirmado. crt.sh: un certificado nuevo de un
-subdominio. La pauta activa no se busca: la anota Cristina.
+subdominio. RSS: la fecha de la última publicación del blog, tal como la
+declara el feed. La pauta activa no se busca: la anota Cristina.
 """
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
+from email.utils import parsedate_to_datetime
+from urllib.parse import urljoin
 
 CDX = "https://web.archive.org/cdx/search/cdx"
 CRT = "https://crt.sh/"
+UA = {"User-Agent": "AuraOrganicGrowth/1.0 (diagnostico)"}
+# WordPress publica /feed/; Webflow, /blog/rss.xml. Solo se prueban si la portada no declara un feed.
+RUTAS_FEED = ("/feed/", "/blog/rss.xml")
+TIPOS_FEED = ("application/rss+xml", "application/atom+xml")
+_LINK = re.compile(r"<link\b[^>]*>", re.IGNORECASE)
+_ATRIBUTO = re.compile(r"""([a-zA-Z:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')""")
+_PUBDATE = re.compile(r"<pubDate>\s*([^<]+?)\s*</pubDate>", re.IGNORECASE)
+_ISO = re.compile(r"<(?:updated|published)>\s*(\d{4}-\d{2}-\d{2})", re.IGNORECASE)
 
 
 def _hace_seis_meses(hoy: date) -> date:
@@ -87,6 +99,54 @@ def subdominios_nuevos(dominio: str, session=None, hoy: date | None = None) -> d
     if not nuevos:
         return {"senal": "subdominio nuevo", "nivel": "observado", "detalle": "crt.sh no muestra un subdominio nuevo en el período", "nombres": []}
     return {"senal": "subdominio nuevo", "nivel": "observado", "nombres": sorted(nuevos)}
+
+
+def feeds_declarados(html: str | None, origen: str) -> list[str]:
+    salida = []
+    for etiqueta in _LINK.findall(html or ""):
+        atributos = {k.lower(): (a or b) for k, a, b in _ATRIBUTO.findall(etiqueta)}
+        if "alternate" in atributos.get("rel", "").lower() and atributos.get("type", "").lower() in TIPOS_FEED:
+            href = atributos.get("href", "").strip()
+            if href and "comments" not in href.lower():
+                salida.append(urljoin(origen + "/", href))
+    return list(dict.fromkeys(salida))
+
+
+def fechas_de_feed(texto: str) -> list[date]:
+    fechas = []
+    for crudo in _PUBDATE.findall(texto or ""):
+        try:
+            fechas.append(parsedate_to_datetime(crudo).date())
+        except (TypeError, ValueError):
+            continue
+    for crudo in _ISO.findall(texto or ""):
+        try:
+            fechas.append(date.fromisoformat(crudo))
+        except ValueError:
+            continue
+    return fechas
+
+
+def ultima_publicacion(html: str | None, origen: str, session=None, hoy: date | None = None) -> dict:
+    """La fecha más reciente que declara el feed del blog. Sin feed legible, «no determinable»."""
+    hoy = hoy or date.today()
+    vacio = {"senal": "ultima publicacion", "nivel": "no determinable", "fecha": None, "url": None}
+    if not origen:
+        return vacio
+    http = session or __import__("requests")
+    candidatos = feeds_declarados(html, origen) or [origen + ruta for ruta in RUTAS_FEED]
+    for url in candidatos[:3]:
+        try:
+            resp = http.get(url, headers=UA, timeout=20)
+        except Exception:  # noqa: BLE001
+            continue
+        texto = str(getattr(resp, "text", "") or "")[:2_000_000]
+        if getattr(resp, "status_code", 0) != 200 or not re.search(r"<(rss|feed)\b", texto[:3000], re.IGNORECASE):
+            continue
+        fechas = [f for f in fechas_de_feed(texto) if f <= hoy]
+        if fechas:
+            return {"senal": "ultima publicacion", "nivel": "observado", "fecha": max(fechas).isoformat(), "url": url}
+    return vacio
 
 
 def vacante(html: str | None) -> dict:
