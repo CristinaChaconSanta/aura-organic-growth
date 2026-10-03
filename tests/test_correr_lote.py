@@ -1,7 +1,22 @@
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 RAIZ = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(autouse=True)
+def _sin_feed_en_red(monkeypatch):
+    # El script se carga en cada test con from-import: el reemplazo va en el módulo de origen.
+    monkeypatch.setattr(
+        "aura_organic_growth.senales.ultima_publicacion",
+        lambda html, origen, session=None, hoy=None: {"senal": "ultima publicacion", "nivel": "no determinable", "fecha": None, "url": None},
+    )
+    # El script carga el .env real: sin esto la pregunta la escribiría Gemini de verdad.
+    monkeypatch.setattr("aura_organic_growth.ia.clave_gemini", lambda: "")
+
+
 RESPUESTA_IA = {
     "status": "ok", "idioma": "es", "empresa": "DIVE", "dominio": "dive.cl", "pregunta": "¿Q?",
     "fecha": "2026-09-30", "pais": "Chile",
@@ -104,3 +119,38 @@ def test_english_uc_usa_su_sitio_real_y_conserva_el_dominio_guardado(monkeypatch
     lote._medir(_lead(empresa="English UC", url="https://uc.cl", dominio="uc.cl"))
     assert pedidas == ["https://english.uc.cl", "https://english.uc.cl"]
     assert recibido["dominio"] == "uc.cl" and recibido["origen_servicio"] == "h1"
+
+
+def _con_oferta(monkeypatch, registro):
+    monkeypatch.setattr("aura_organic_growth.ia.clave_gemini", lambda: "k")
+    monkeypatch.setattr("aura_organic_growth.oferta.evidencia", lambda html, url, session=None, renderizar=None: [])
+    monkeypatch.setattr("aura_organic_growth.oferta.oferta", lambda paginas, **kw: registro)
+    lote = _cargar()
+    monkeypatch.setattr(lote, "_portada", lambda url: (200, "<title>Clemsa</title>"))
+    monkeypatch.setattr(lote, "medir_legibilidad", lambda url, html=None: {"url": url, "fecha": "2026-09-30", "robots": {}})
+    return lote
+
+
+def test_con_gemini_la_pregunta_verificada_reemplaza_la_del_title(monkeypatch):
+    lote = _con_oferta(monkeypatch, {
+        "status": "ok", "termino": "arriendo de maquinaria pesada",
+        "preguntas": ["¿Qué empresas ofrecen arriendo de maquinaria pesada en San Bernardo?"],
+    })
+    recibido = {}
+    monkeypatch.setattr(lote, "consultar_ia", lambda servicios, **kw: recibido.update(servicios=servicios, **kw) or dict(RESPUESTA_IA))
+    fila = lote._medir(_lead(empresa="Clemsa", url="https://clemsa.cl", dominio="clemsa.cl", ciudad="San Bernardo"))
+    assert recibido["pregunta"] == "¿Qué empresas ofrecen arriendo de maquinaria pesada en San Bernardo?"
+    assert recibido["servicios"] == ["arriendo de maquinaria pesada"] and recibido["origen_servicio"] == "oferta"
+    assert fila["ia"]["oferta"]["status"] == "ok"
+
+
+def test_pregunta_no_verificada_no_gasta_en_ia(monkeypatch):
+    lote = _con_oferta(monkeypatch, {"status": "sin dato", "razon": "ciudad y país no coinciden: Houston"})
+
+    def no_debia(*a, **k):
+        raise AssertionError("no debía consultar la IA")
+
+    monkeypatch.setattr(lote, "consultar_ia", no_debia)
+    fila = lote._medir(_lead(empresa="OutLoud", url="https://outloud.com", dominio="outloud.com", ciudad="Houston"))
+    assert fila["ia"]["status"] == "sin dato"
+    assert fila["ia"]["razon"] == "pregunta no confiable: ciudad y país no coinciden: Houston"

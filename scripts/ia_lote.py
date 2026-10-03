@@ -1,12 +1,16 @@
 """Prueba con IA y lectura del sitio para IA, solo para los leads que se pidan.
 
-Uso: python scripts/ia_lote.py [--simular] [--sin-ia=ID,ID] LEAD_ID [LEAD_ID ...]
+Uso: python scripts/ia_lote.py [--simular] [--sin-ia=ID,ID] [--repeticiones=N] LEAD_ID [LEAD_ID ...]
 
 --sin-ia: esos leads solo reciben la lectura del sitio (sin gastar en IA).
+--repeticiones: cuántas veces se hace la misma pregunta a cada motor (por defecto 3).
 
---simular muestra la pregunta de cada lead sin llamar a DataForSEO (costo 0).
-Sin --simular corre ChatGPT y Gemini con el freno de saldo (menos de USD 0,10
-no llama) y escribe `data/lotes/ia-lote-AAAA-MM-DD.json` y una copia del último
+--simular muestra la pregunta de cada lead sin hacer la prueba con IA (costo 0).
+Con GEMINI_API_KEY la pregunta la escribe Gemini desde lo que vende el sitio
+(oferta.py, cuota gratuita) y solo sale si pasa la verificación.
+Sin --simular corre ChatGPT (DataForSEO, con el freno de saldo: menos de
+USD 0,10 no llama) y Gemini (API directa si hay GEMINI_API_KEY; si no, DataForSEO)
+y escribe `data/lotes/ia-lote-AAAA-MM-DD.json` y una copia del último
 resumen con `ia` y `legibilidad_ia` por lead, que es lo que lee
 `actualizar_hallazgos.py`. No redacta, no envía.
 """
@@ -44,6 +48,9 @@ def main(argv: list[str]) -> None:
     simular = "--simular" in argv
     ids = {int(a) for a in argv if a.isdigit()}
     sin_ia = {int(n) for a in argv if a.startswith("--sin-ia=") for n in a.split("=", 1)[1].split(",") if n}
+    repeticiones = next(
+        (int(a.split("=", 1)[1]) for a in argv if a.startswith("--repeticiones=")), lote.REPETICIONES_IA
+    )
     seleccion = json.loads((ROOT / "data" / "lotes" / "seleccion.json").read_text(encoding="utf-8"))
     leads = [lead for lead in seleccion if lead["lead_id"] in ids]
     if not leads:
@@ -54,14 +61,18 @@ def main(argv: list[str]) -> None:
         url = lote.url_de(lead["url"], lead["dominio"])
         _estado, html = lote._portada(url)
         if simular:
-            servicios, ciudad, origen = lote.servicio_y_ciudad(lead, lead["dominio"], html)
-            print(f"{lead['empresa']} [{origen}] {pregunta_de(servicios, ciudad, lead['pais'])}", flush=True)
+            elegida = lote.pregunta_del_lead(lead, lead["dominio"], url, html)
+            oferta = elegida["oferta"] or {}
+            pregunta = elegida["pregunta"] or pregunta_de(elegida["servicios"], elegida["ciudad"], lead["pais"])
+            if oferta and oferta.get("status") != "ok":
+                pregunta = f"sin dato: pregunta no confiable ({oferta.get('razon')})"
+            print(f"{lead['empresa']} [{elegida['origen']}] {pregunta}", flush=True)
             continue
         if lead["lead_id"] in sin_ia:
             ia = {"status": "sin dato", "razon": "omitida por Cristina/coordinación: pregunta no confiable", "motores": []}
             legibilidad = lote.medir_legibilidad(url, html=html)
         else:
-            ia, legibilidad, _ = lote._paso_ia(lead, url, html)
+            ia, legibilidad, _ = lote._paso_ia(lead, url, html, repeticiones=repeticiones)
         resultados[lead["lead_id"]] = {"empresa": lead["empresa"], "pais": lead["pais"], "ia": ia, "legibilidad_ia": legibilidad}
         print(f"{lead['empresa']}: ia={ia.get('status')} {ia.get('razon', '')}", flush=True)
     if simular:
