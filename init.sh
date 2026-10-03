@@ -24,9 +24,17 @@ fi
 
 echo ""
 echo "── 2. Harness files ───────────────────────────────────"
-for f in CLAUDE.md odd/tasks; do
+for f in CLAUDE.md AGENTS.md CHECKPOINTS.md progress/current.md odd/tasks; do
   if [ -e "$f" ]; then ok "Exists $f"; else fail "Missing $f"; fi
 done
+if [ -f CLAUDE.md ]; then
+  CLAUDE_LINES=$(wc -l < CLAUDE.md | tr -d ' ')
+  if [ "$CLAUDE_LINES" -lt 200 ]; then
+    ok "CLAUDE.md has $CLAUDE_LINES lines (< 200)"
+  else
+    fail "CLAUDE.md has $CLAUDE_LINES lines (must be < 200; move detail to docs/)"
+  fi
+fi
 
 echo ""
 echo "── 3. Tests ───────────────────────────────────────────"
