@@ -1,7 +1,11 @@
 """Prueba en vivo con IA: qué responden ChatGPT y Gemini a la pregunta de un comprador.
 
-DataForSEO LLM Scraper, en vivo. Cada pregunta cuesta unos USD 0,004. Antes de
+ChatGPT: DataForSEO LLM Scraper, en vivo, unos USD 0,004 por pregunta. Antes de
 cada llamada se mira el saldo: bajo USD 0,10 no se llama y queda «sin dato».
+Gemini: con GEMINI_API_KEY va directo a la API de Gemini con búsqueda de Google
+(gratis dentro de la cuota diaria); sin la clave, por DataForSEO.
+La misma pregunta se puede repetir: la respuesta de una IA cambia entre
+corridas, así que el dato es «en X de N respuestas» y el puesto en la lista.
 La pregunta sale solo del servicio y la ciudad observados; si faltan, no se
 inventa una. Nada de esto promete que una IA mencione al negocio.
 """
@@ -9,7 +13,9 @@ inventa una. Nada de esto promete que una IA mencione al negocio.
 from __future__ import annotations
 
 import html as html_lib
+import os
 import re
+import time
 from datetime import date
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -23,6 +29,13 @@ MOTORES = {
     "Gemini": f"{BASE}/gemini/llm_scraper/live/advanced",
 }
 FUENTE = "DataForSEO LLM Scraper"
+GEMINI_API = "https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent"
+# gemini-2.5-flash ya no se da a cuentas nuevas. Cuota gratis de 3.5 Flash: 20 por día y por key;
+# Flash Lite queda de respaldo. Con facturación, Gemini 3 cobra cada búsqueda que decide el modelo.
+GEMINI_MODELOS = ("gemini-3.5-flash", "gemini-3.1-flash-lite")
+FUENTE_GEMINI = "API de Gemini con búsqueda de Google"
+ESPERA_429 = 20
+INTENTOS_GEMINI = 3
 SIN_DATO = "sin dato"
 UA = {"User-Agent": "AuraOrganicGrowth/1.0 (diagnostico)"}
 MERCADOS = {
@@ -77,7 +90,7 @@ def pregunta_de(servicios: list[str], ciudad: str, pais: str) -> str:
     if not servicio or not lugar:
         return SIN_DATO
     if idioma_de(pais) == "pt-BR":
-        return f"Qual {servicio} você recomenda em {lugar}?"
+        return f"Qual {servicio} você recomenda {'em ' + lugar if ciudad else 'no Brasil'}?"
     return f"¿Qué {servicio} me recomiendas en {lugar}?"
 
 
@@ -200,13 +213,19 @@ def _nombre_limpio(crudo: str) -> str:
     return re.sub(r"^\d+[.)]\s*", "", nombre).strip(" *_.,;:\"'«»")
 
 
+def _frase_comun(nombre: str) -> bool:
+    """«SEO y publicidad pagada», «Mi recomendación práctica»: tras la primera palabra, todo en minúscula."""
+    resto = nombre.split()[1:]
+    return bool(resto) and not any(p[0].isupper() or p[0].isdigit() for p in resto)
+
+
 def _aceptable(nombre: str, vistos: set[str], pregunta: str) -> bool:
     clave = plano(nombre)
     # Una palabra que la pregunta ya trae (IELTS, Cambridge) es el tema, no un negocio recomendado.
     en_pregunta = bool(pregunta) and re.search(rf"(?<![a-z0-9]){re.escape(clave)}(?![a-z0-9])", plano(pregunta))
     return bool(
         nombre and clave not in vistos and clave not in GENERICOS and len(nombre.split()) <= 6 and not en_pregunta
-        and not nombre.endswith("?") and (nombre[0].isupper() or "." in nombre)
+        and not nombre.endswith("?") and (nombre[0].isupper() or "." in nombre) and not _frase_comun(nombre)
     )
 
 
@@ -225,26 +244,31 @@ def entidades_de(entidades: list | None, pregunta: str = "") -> list[str]:
 
 
 def recomendados_de(markdown: str, *, pregunta: str = "") -> list[str]:
-    """Negocios en negrita dentro de una lista o un título. Extracción aproximada.
+    """Negocios en negrita, en el orden en que aparecen. Extracción aproximada.
 
     Se quitan los enlaces antes de leer la negrita (Gemini los mete dentro) y se
-    descartan las etiquetas («Por qué destaca:», «**SEO**: ...»).
+    descartan las etiquetas («Por qué destaca:», «**SEO**: ...»). De cada ítem de
+    lista o título se toma un solo negocio. Fuera de una lista (Gemini nombra
+    agencias dentro de un párrafo) se descartan además las siglas cortas, que ahí
+    suelen ser un tema («**SEO**», «**CRO**»).
     """
     salida: list[str] = []
     vistos: set[str] = set()
     for linea in _ENLACE_EN_TEXTO.sub("", markdown or "").splitlines():
         inicio = re.match(r"\s*(?:([-*•])|\d+[.)]|#{1,4})\s", linea)
-        if not inicio:
-            continue
-        viñeta = bool(inicio.group(1))  # «- **Etiqueta**: texto» es una etiqueta; «2. **Nombre**: texto» no
+        viñeta = bool(inicio and inicio.group(1))  # «- **Etiqueta**: texto» es una etiqueta; «2. **Nombre**: texto» no
         for hallado in _NEGRITA.finditer(linea):
             crudo = hallado.group(1)
-            if crudo.rstrip().endswith(":") or (viñeta and linea[hallado.end():].startswith(":")):
+            if crudo.rstrip().endswith(":") or ((viñeta or not inicio) and linea[hallado.end():].startswith(":")):
                 continue
             nombre = _nombre_limpio(crudo)
+            if not inicio and nombre.isupper() and len(nombre) <= 5:
+                continue
             if _aceptable(nombre, vistos, pregunta):
                 vistos.add(plano(nombre))
                 salida.append(nombre)
+                if inicio:
+                    break  # un ítem de lista es un negocio; las otras negritas de la línea lo describen
         if len(salida) >= TOPE_RECOMENDADOS:
             break
     return salida[:TOPE_RECOMENDADOS]
@@ -272,6 +296,14 @@ def menciona(texto: str, dominio: str, empresa: str = "") -> bool:
         if re.search(rf"(?<![a-z0-9]){re.escape(marca)}(?![a-z0-9])", cuerpo):
             return True
     return False
+
+
+def posicion_de(recomendados: list[str], dominio: str, empresa: str = "") -> int | None:
+    """Puesto del lead en la lista de recomendados, desde 1. None si no está en la lista."""
+    for puesto, nombre in enumerate(recomendados or [], 1):
+        if menciona(nombre, dominio, empresa):
+            return puesto
+    return None
 
 
 def _vacio_motor(motor: str, base: dict, razon: str) -> dict:
@@ -335,7 +367,126 @@ def _es_candidata(item: dict) -> bool:
     return item["dominio"] in DIRECTORIOS or es_lista(item.get("titulo") or "")
 
 
+def _fila_ok(motor: str, base: dict, texto: str, citadas: list[dict], recomendados: list[str], origen: str,
+             dominio: str, empresa: str, costo: float | None, fuente: str) -> dict:
+    return {
+        "pregunta": base["pregunta"],
+        "motor": motor,
+        "fecha": base["fecha"],
+        "pais": base["pais"],
+        "idioma": base["idioma"],
+        "menciona_lead": menciona(texto, dominio, empresa),
+        "recomendados": recomendados,
+        "recomendados_origen": origen,
+        "posicion_lead": posicion_de(recomendados, dominio, empresa),
+        "respuesta": texto[:4000],
+        "fuentes_citadas": fuentes_citadas(citadas),
+        "urls_citadas": citadas,
+        "listas_revisadas": [],
+        "costo_usd": costo,
+        "fuente": fuente,
+        "nivel": "observado",
+        "status": "ok",
+    }
+
+
+def claves_gemini() -> list[str]:
+    """GEMINI_API_KEY y GEMINI_API_KEY_2 … _9, sin repetir, en ese orden."""
+    nombres = ["GEMINI_API_KEY"] + [f"GEMINI_API_KEY_{n}" for n in range(2, 10)]
+    return list(dict.fromkeys(c for c in (os.getenv(n, "").strip().strip('"') for n in nombres) if c))
+
+
+def clave_gemini() -> str:
+    claves = claves_gemini()
+    return claves[0] if claves else ""
+
+
+def modelos_gemini(variable: str, por_defecto: tuple[str, ...]) -> tuple[str, ...]:
+    elegido = os.getenv(variable, "").strip()
+    return (elegido,) if elegido else por_defecto
+
+
+def pedir_gemini(http, cuerpo: dict, modelos: tuple[str, ...], espera=time.sleep, pausa: float | None = None):
+    """(JSON, modelo, razón). Cada modelo con cada key, en orden.
+
+    Cuota del día agotada o proyecto bloqueado: pasa a la key siguiente. Saturado
+    o límite por minuto: reintenta y, si sigue, pasa al modelo siguiente (la
+    saturación es del modelo, no de la key).
+    """
+    pausa = ESPERA_429 if pausa is None else pausa
+    razon, usado = "sin GEMINI_API_KEY", modelos[-1]
+    for modelo in modelos:
+        usado = modelo
+        for clave in claves_gemini():
+            saturado = False
+            for intento in range(INTENTOS_GEMINI):
+                try:
+                    resp = http.post(
+                        GEMINI_API.format(modelo=modelo), json=cuerpo, headers={"x-goog-api-key": clave}, timeout=120
+                    )
+                except Exception:  # noqa: BLE001
+                    resp, razon = None, "sin respuesta"
+                if resp is not None:
+                    if resp.status_code == 200:
+                        return resp.json(), modelo, ""
+                    if "PerDay" in str(getattr(resp, "text", "") or ""):
+                        razon = "cuota diaria de Gemini agotada"
+                        break
+                    razon = f"http_{resp.status_code}"
+                    if resp.status_code not in (429, 500, 503):
+                        break
+                saturado = intento == INTENTOS_GEMINI - 1
+                if not saturado:
+                    espera(pausa * (intento + 1))
+            if saturado:
+                break
+    return None, usado, razon
+
+
+def _respuesta_gemini(data: dict) -> tuple[str, list[dict], list[str]]:
+    """Texto, fuentes de la búsqueda de Google y las búsquedas que hizo el modelo para responder."""
+    candidato = ((data or {}).get("candidates") or [{}])[0] or {}
+    partes = (candidato.get("content") or {}).get("parts") or []
+    texto = "".join(str(p.get("text") or "") for p in partes if isinstance(p, dict))
+    meta = candidato.get("groundingMetadata") or {}
+    citadas: list[dict] = []
+    vistas: set[str] = set()
+    for trozo in meta.get("groundingChunks") or []:
+        web = (trozo or {}).get("web") or {}
+        url = str(web.get("uri") or "")
+        titulo = str(web.get("title") or "")
+        # La URL es una redirección de Google; el título trae el dominio de la fuente.
+        dominio = dominio_de(titulo) if "." in titulo else dominio_de(url)
+        if not url.startswith("http") or _ignorado(dominio) or url in vistas:
+            continue
+        vistas.add(url)
+        citadas.append({"url": url, "dominio": dominio, "titulo": titulo})
+    busquedas = [str(q).strip() for q in meta.get("webSearchQueries") or [] if str(q).strip()]
+    return texto, citadas, busquedas
+
+
+def _consultar_gemini_api(http, base: dict, dominio: str, empresa: str, espera=time.sleep) -> dict:
+    cuerpo = {"contents": [{"parts": [{"text": base["pregunta"]}]}], "tools": [{"google_search": {}}]}
+    data, modelo, razon = pedir_gemini(http, cuerpo, modelos_gemini("GEMINI_MODELO", GEMINI_MODELOS), espera=espera)
+    if data is None:
+        return _vacio_motor("Gemini", base, razon)
+    texto, citadas, busquedas = _respuesta_gemini(data)
+    if not texto.strip():
+        return _vacio_motor("Gemini", base, "respuesta sin texto")
+    vistas = {c["url"] for c in citadas}
+    citadas += [c for c in urls_citadas(texto) if c["url"] not in vistas]
+    recomendados = recomendados_de(texto, pregunta=base["pregunta"])
+    fila = _fila_ok("Gemini", base, texto, citadas, recomendados, "negrita en la respuesta",
+                    dominio, empresa, None, f"{FUENTE_GEMINI} ({modelo})")
+    fila["busquedas_ia"] = busquedas
+    return fila
+
+
 def _consultar_motor(http, auth, motor: str, base: dict, dominio: str, empresa: str) -> dict:
+    if motor == "Gemini" and clave_gemini():
+        return _consultar_gemini_api(http, base, dominio, empresa)
+    if not auth:
+        return _vacio_motor(motor, base, "sin DATAFORSEO_LOGIN")
     freno = freno_de_saldo(http, auth)
     if freno:
         return _vacio_motor(motor, base, freno)
@@ -356,23 +507,8 @@ def _consultar_motor(http, auth, motor: str, base: dict, dominio: str, empresa: 
     citadas = urls_citadas(texto, extra)
     por_entidad = entidades_de(entidades, base["pregunta"])
     recomendados = por_entidad or recomendados_de(texto, pregunta=base["pregunta"])
-    return {
-        "pregunta": base["pregunta"],
-        "motor": motor,
-        "fecha": base["fecha"],
-        "pais": base["pais"],
-        "idioma": base["idioma"],
-        "menciona_lead": menciona(texto, dominio, empresa),
-        "recomendados": recomendados,
-        "recomendados_origen": "entidades de la respuesta" if por_entidad else "negrita en listas",
-        "respuesta": texto[:4000],
-        "fuentes_citadas": fuentes_citadas(citadas),
-        "urls_citadas": citadas,
-        "listas_revisadas": [],
-        "costo_usd": costo,
-        "nivel": "observado",
-        "status": "ok",
-    }
+    origen = "entidades de la respuesta" if por_entidad else "negrita en listas"
+    return _fila_ok(motor, base, texto, citadas, recomendados, origen, dominio, empresa, costo, FUENTE)
 
 
 def consultar(
@@ -387,10 +523,13 @@ def consultar(
     motores: tuple[str, ...] = ("ChatGPT", "Gemini"),
     revisar_listas: bool = True,
     origen_servicio: str = "observados",
+    repeticiones: int = 1,
+    pregunta: str | None = None,
 ) -> dict:
+    """`pregunta` ya verificada (oferta.py) reemplaza la que se arma con servicio y ciudad."""
     fecha = (hoy or date.today()).isoformat()
     mercado = mercado_de(pais)
-    pregunta = pregunta_de(servicios, ciudad, pais)
+    pregunta = (pregunta or "").strip() or pregunta_de(servicios, ciudad, pais)
     base = {
         "pregunta": pregunta,
         "fecha": fecha,
@@ -421,11 +560,16 @@ def consultar(
     if not mercado:
         return sin_dato("pais sin mercado de LLM Scraper")
     login, password = credenciales()
-    if not login or not password:
+    auth = (login, password) if login and password else None
+    if not auth and not ("Gemini" in motores and clave_gemini()):
         return sin_dato("sin DATAFORSEO_LOGIN")
     http = session or __import__("requests")
-    auth = (login, password)
-    filas = [_consultar_motor(http, auth, motor, base, dominio, empresa) for motor in motores]
+    filas = []
+    for motor in motores:
+        for corrida in range(1, max(1, repeticiones) + 1):
+            fila = _consultar_motor(http, auth, motor, base, dominio, empresa)
+            fila["corrida"] = corrida
+            filas.append(fila)
     if revisar_listas:
         revisadas: dict[str, dict] = {}
         for fila in filas:
@@ -438,7 +582,11 @@ def consultar(
             ]
     costos = [f["costo_usd"] for f in filas if isinstance(f["costo_usd"], (int, float))]
     estado = "ok" if any(f["status"] == "ok" for f in filas) else "sin dato"
-    registro.update({"motores": filas, "costo_usd": round(sum(costos), 6) if costos else None, "status": estado})
+    fuentes = list(dict.fromkeys(f["fuente"] for f in filas if f.get("fuente")))
+    registro.update({
+        "motores": filas, "costo_usd": round(sum(costos), 6) if costos else None, "status": estado,
+        "repeticiones": max(1, repeticiones), "fuente": "; ".join(fuentes) or FUENTE,
+    })
     if estado == "sin dato":
         registro["razon"] = "; ".join(sorted({str(f.get("razon")) for f in filas}))
     return registro
@@ -468,6 +616,12 @@ _TEXTOS = {
         "consecuencia_fuentes_ausente": "La IA citó esa página al responder y en ella {empresa} no figura.",
         "consecuencia_fuentes": "Esas son las páginas que la IA citó al responder esta pregunta.",
         "fuente": "Prueba en vivo con {motores}",
+        "pregunto_n": "Le hicimos la misma pregunta {n} veces {motores}: «{pregunta}».",
+        "menciones_n": "{motor} nombró a {empresa} en {k} de {n} respuestas",
+        "menciones_0": "{motor} no nombró a {empresa} en ninguna de las {n} respuestas.",
+        "puesto": ", en el puesto {lista}",
+        "puestos": ", en los puestos {lista}",
+        "consecuencia_parcial": "La IA lo nombra a veces: en las demás respuestas, quien pregunta recibe a la competencia.",
     },
     "pt-BR": {
         "y": "e",
@@ -492,6 +646,12 @@ _TEXTOS = {
         "consecuencia_fuentes_ausente": "A IA citou essa página ao responder e nela {empresa} não consta.",
         "consecuencia_fuentes": "Essas são as páginas que a IA citou ao responder essa pergunta.",
         "fuente": "Teste ao vivo com {motores}",
+        "pregunto_n": "Fizemos a mesma pergunta {n} vezes {motores}: «{pregunta}».",
+        "menciones_n": "O {motor} citou {empresa} em {k} de {n} respostas",
+        "menciones_0": "O {motor} não citou {empresa} em nenhuma das {n} respostas.",
+        "puesto": ", na posição {lista}",
+        "puestos": ", nas posições {lista}",
+        "consecuencia_parcial": "A IA cita a empresa às vezes: nas outras respostas, quem pergunta recebe a concorrência.",
     },
 }
 
@@ -507,6 +667,52 @@ def _unidos(nombres: list[str], t: dict, *, prep: str = "") -> str:
     return _lista([f"{prep}{n}" for n in nombres], t)
 
 
+def _agrupados(motores: list[dict]) -> list[dict]:
+    """Una fila por motor. Con varias corridas suma menciones y ordena los recomendados por frecuencia."""
+    grupos: dict[str, list[dict]] = {}
+    for m in motores:
+        grupos.setdefault(m["motor"], []).append(m)
+    salida = []
+    for filas in grupos.values():
+        nombres: dict[str, str] = {}
+        veces: dict[str, int] = {}
+        for f in filas:
+            for n in f["recomendados"]:
+                nombres.setdefault(plano(n), n)
+                veces[plano(n)] = veces.get(plano(n), 0) + 1
+        orden = sorted(nombres, key=lambda k: -veces[k])  # estable: a igual frecuencia, el que apareció antes
+        listas = {r["url"]: r for f in filas for r in f.get("listas_revisadas") or []}
+        salida.append({
+            **filas[0],
+            "recomendados": [nombres[k] for k in orden],
+            "fuentes_citadas": list(dict.fromkeys(d for f in filas for d in f["fuentes_citadas"])),
+            "listas_revisadas": list(listas.values()),
+            "menciona_lead": any(f["menciona_lead"] for f in filas),
+            "corridas": len(filas),
+            "menciones": sum(1 for f in filas if f["menciona_lead"]),
+            "posiciones": sorted({f["posicion_lead"] for f in filas if f.get("posicion_lead")}),
+        })
+    return salida
+
+
+def _texto_repetido(motores: list[dict], t: dict, pregunta: str, nombre: str) -> str:
+    n = max(m["corridas"] for m in motores)
+    partes = [t["pregunto_n"].format(n=n, motores=_unidos([m["motor"] for m in motores], t, prep=t["prep"]), pregunta=pregunta)]
+    for m in motores:
+        if m["recomendados"]:
+            partes.append(t["recomendo"].format(motor=m["motor"], lista=_lista(m["recomendados"][:5], t)))
+    for m in motores:
+        if not m["menciones"]:
+            partes.append(t["menciones_0"].format(motor=m["motor"], empresa=nombre, n=m["corridas"]))
+            continue
+        frase = t["menciones_n"].format(motor=m["motor"], empresa=nombre, k=m["menciones"], n=m["corridas"])
+        if m["posiciones"]:
+            clave = "puesto" if len(m["posiciones"]) == 1 else "puestos"
+            frase += t[clave].format(lista=_lista([str(p) for p in m["posiciones"]], t))
+        partes.append(frase + ".")
+    return " ".join(partes)
+
+
 def hallazgos_de_ia(registro: dict | None, *, empresa: str = "") -> list[dict]:
     """Hasta dos hallazgos: lo que respondió la IA y las fuentes que citó. Solo con motor observado."""
     if not registro or registro.get("status") != "ok":
@@ -520,20 +726,26 @@ def hallazgos_de_ia(registro: dict | None, *, empresa: str = "") -> list[dict]:
     fecha = str(registro.get("fecha") or SIN_DATO)
     pais = str(registro.get("pais") or SIN_DATO)
     # Los registros guardados antes de estos filtros se limpian aquí, sin tocar el original.
-    motores = [
-        {
+    dominio = str(registro.get("dominio") or "")
+    limpios = []
+    for m in motores:
+        recomendados = [n for n in m["recomendados"] if _aceptable(n, set(), pregunta)]
+        limpios.append({
             **m,
-            "recomendados": [n for n in m["recomendados"] if _aceptable(n, set(), pregunta)],
+            "recomendados": recomendados,
+            "posicion_lead": posicion_de(recomendados, dominio, nombre),
             "fuentes_citadas": [d for d in m["fuentes_citadas"] if not _ignorado(d)],
-        }
-        for m in motores
-    ]
+        })
+    motores = _agrupados(limpios)
+    repetido = any(m["corridas"] > 1 for m in motores)
     nombres_motores = [m["motor"] for m in motores]
     fuente = t["fuente"].format(motores=f" {t['y']} ".join(nombres_motores))
     hallazgos = []
 
     # 1. Lo que respondió la IA.
-    if len(motores) == 1:
+    if repetido:
+        texto = _texto_repetido(motores, t, pregunta, nombre)
+    elif len(motores) == 1:
         m = motores[0]
         rec = m["recomendados"][:5]
         texto = t["pregunto_uno"].format(motor=m["motor"], pregunta=pregunta)
@@ -555,14 +767,22 @@ def hallazgos_de_ia(registro: dict | None, *, empresa: str = "") -> list[dict]:
         texto = " ".join(partes)
     algun_si = any(m["menciona_lead"] for m in motores)
     hay_rec = any(m["recomendados"] for m in motores)
+    parcial = repetido and algun_si and all(m["menciones"] < m["corridas"] for m in motores)
     consecuencia = (
-        t["consecuencia_presente"] if algun_si
+        t["consecuencia_parcial"] if parcial
+        else t["consecuencia_presente"] if algun_si
         else t["consecuencia_ausente"] if hay_rec
         else t["consecuencia_sin_nombres"]
     )
+
+    def _menciones(m: dict) -> str:
+        if not repetido:
+            return f"{'Mencionó' if m['menciona_lead'] else 'No mencionó'} a {nombre}."
+        puestos = ", ".join(str(p) for p in m["posiciones"]) or "sin dato"
+        return f"Mencionó a {nombre} en {m['menciones']} de {m['corridas']} respuestas. Puestos: {puestos}."
+
     evidencia = " | ".join(
-        f"{m['motor']}, {fecha}, {pais}, {m['idioma']}. "
-        f"{'Mencionó' if m['menciona_lead'] else 'No mencionó'} a {nombre}. "
+        f"{m['motor']}, {fecha}, {pais}, {m['idioma']}. {_menciones(m)} "
         f"Recomendó: {', '.join(m['recomendados']) or 'sin dato'}. "
         f"Fuentes: {', '.join(m['fuentes_citadas']) or 'sin dato'}."
         for m in motores

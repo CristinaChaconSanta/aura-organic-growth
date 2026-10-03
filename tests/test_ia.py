@@ -1,5 +1,8 @@
 from datetime import date
 
+import pytest
+
+from aura_organic_growth import ia as ia_mod
 from aura_organic_growth.ia import (
     consultar,
     fuentes_citadas,
@@ -60,6 +63,13 @@ class Http:
         return self.respuestas.get(motor, Resp(_ok(MARKDOWN)))
 
 
+@pytest.fixture(autouse=True)
+def _sin_gemini_directo(monkeypatch):
+    # supabase_rest carga el .env real al importarse: la clave nunca debe llegar a un test.
+    for nombre in ["GEMINI_API_KEY", "GEMINI_MODELO"] + [f"GEMINI_API_KEY_{n}" for n in range(2, 10)]:
+        monkeypatch.delenv(nombre, raising=False)
+
+
 def _credenciales(monkeypatch):
     monkeypatch.setenv("DATAFORSEO_LOGIN", "login")
     monkeypatch.setenv("DATAFORSEO_PASSWORD", "clave")
@@ -73,7 +83,7 @@ def test_pregunta_solo_con_servicio_y_ciudad_observados():
     assert pregunta_de([], "Santiago", "Chile") == "sin dato"
     assert pregunta_de(["agencia"], "", "Chile") == "¿Qué agencia me recomiendas en Chile?"
     assert pregunta_de(["agencia"], "sin dato", "Chile") == "¿Qué agencia me recomiendas en Chile?"
-    assert pregunta_de(["agencia"], "Brazil (dato de Apollo)", "Brasil") == "Qual agencia você recomenda em Brasil?"
+    assert pregunta_de(["agencia"], "Brazil (dato de Apollo)", "Brasil") == "Qual agencia você recomenda no Brasil?"
     assert pregunta_de(["agencia"], "", "") == "sin dato"
 
 
@@ -398,3 +408,172 @@ def test_filtra_palabras_de_la_pregunta_y_el_buscador_de_mapas():
     assert "maps.google.com" not in segundo["texto"] and "unitychile.cl" in segundo["texto"]
     assert gemini["recomendados"] == ["IELTS", "Cambridge", "Unity Chile"]  # el registro guardado no se toca
     assert entidades_de([{"title": "IELTS"}, {"title": "Unity"}], pregunta) == ["Unity"]
+
+
+# --- Frases que no son marcas, negrita en párrafos y puesto --------------------
+
+from aura_organic_growth.ia import posicion_de  # noqa: E402
+
+# Respuesta de Gemini para DIVE del 2026-09-30: dos agencias van en negrita dentro de un párrafo.
+GEMINI_DIVE = """A continuación te recomiendo algunas:
+
+* [Av. Apoquindo 5950](https://maps.google.com/?cid=1) (oficinas de agencias como **Cebra**): enfoque en **SEO**.
+* [Alonso de Córdova 5870](https://maps.google.com/?cid=2) (sede de agencias como **OneDigital**): pauta.
+
+Además operan agencias como **Bigbuda** (analítica y **CRO**) y **Nexbu** (performance).
+
+**Si me dices qué vendes y tu presupuesto, te ayudo a elegir la mejor opción.**
+"""
+
+
+def test_frases_comunes_no_son_marcas():
+    texto = "- **SEO y publicidad pagada**\n1. **Mi recomendación práctica**\n2. **Scale Lab**\n3. **Müller y Pérez**"
+    assert recomendados_de(texto) == ["Scale Lab", "Müller y Pérez"]
+    assert entidades_de([{"title": "B2B y generación de leads"}, {"title": "Hitos"}]) == ["Hitos"]
+
+
+def test_negrita_en_parrafo_sin_siglas_ni_frases():
+    assert recomendados_de(GEMINI_DIVE) == ["Cebra", "OneDigital", "Bigbuda", "Nexbu"]
+
+
+def test_puesto_del_lead_en_la_lista():
+    assert posicion_de(["Bigbuda", "DIVE Agencia", "Onza"], "dive.cl", "DIVE") == 2
+    assert posicion_de(["Bigbuda", "Onza"], "dive.cl", "DIVE") is None
+    assert posicion_de([], "dive.cl", "DIVE") is None
+
+
+# --- Repeticiones --------------------------------------------------------------
+
+
+def test_repite_la_pregunta_y_numera_las_corridas(monkeypatch):
+    _credenciales(monkeypatch)
+    http = Http(respuestas={"gemini": Resp(_ok("1. **Bigbuda**\n2. **DIVE**"))})
+    r = consultar(["agencia"], ciudad="Santiago", pais="Chile", dominio="dive.cl", empresa="DIVE",
+                  session=http, hoy=HOY, revisar_listas=False, repeticiones=3)
+    assert len(http.posts) == 6
+    assert [(m["motor"], m["corrida"]) for m in r["motores"]] == [
+        ("ChatGPT", 1), ("ChatGPT", 2), ("ChatGPT", 3), ("Gemini", 1), ("Gemini", 2), ("Gemini", 3),
+    ]
+    assert r["repeticiones"] == 3 and r["costo_usd"] == 0.024
+    assert {m["posicion_lead"] for m in r["motores"] if m["motor"] == "Gemini"} == {2}
+    assert {m["posicion_lead"] for m in r["motores"] if m["motor"] == "ChatGPT"} == {None}
+
+
+def _corrida(motor, menciona, recomendados, corrida):
+    return {**_motor(motor, menciona, recomendados), "corrida": corrida}
+
+
+def test_hallazgo_con_repeticiones_dice_en_cuantas_y_en_que_puesto():
+    registro = _registro(
+        _corrida("ChatGPT", False, ["Bigbuda", "Onza"], 1),
+        _corrida("ChatGPT", True, ["Bigbuda", "DIVE"], 2),
+        _corrida("ChatGPT", False, ["Onza", "Bigbuda"], 3),
+        _corrida("Gemini", False, ["Cebra"], 1),
+        _corrida("Gemini", False, ["Cebra"], 2),
+        _corrida("Gemini", False, ["Bigbuda"], 3),
+    )
+    primero = hallazgos_de_ia(registro)[0]
+    assert primero["texto"].startswith(f"Le hicimos la misma pregunta 3 veces a ChatGPT y a Gemini: «{PREGUNTA}».")
+    assert "ChatGPT recomendó a Bigbuda, Onza y DIVE." in primero["texto"]
+    assert "Gemini recomendó a Cebra y Bigbuda." in primero["texto"]
+    assert "ChatGPT nombró a DIVE en 1 de 3 respuestas, en el puesto 2." in primero["texto"]
+    assert primero["texto"].endswith("Gemini no nombró a DIVE en ninguna de las 3 respuestas.")
+    assert primero["consecuencia"].startswith("La IA lo nombra a veces")
+    assert "en 1 de 3 respuestas. Puestos: 2." in primero["evidencia"]
+
+
+def test_hallazgo_con_repeticiones_en_portugues():
+    registro = _registro(_corrida("ChatGPT", False, ["A"], 1), _corrida("ChatGPT", False, ["A"], 2), idioma="pt")
+    texto = hallazgos_de_ia(registro)[0]["texto"]
+    assert texto.startswith("Fizemos a mesma pergunta 2 vezes ao ChatGPT")
+    assert texto.endswith("O ChatGPT não citou DIVE em nenhuma das 2 respostas.")
+
+
+# --- Gemini directo (API con búsqueda de Google) ---------------------------------
+
+GEMINI_API_OK = {"candidates": [{
+    "content": {"parts": [{"text": "Te recomiendo:\n\n1. **Bigbuda**: CRO.\n2. **DIVE**: estrategia."}]},
+    "groundingMetadata": {
+        "webSearchQueries": ["mejores agencias marketing digital Santiago"],
+        "groundingChunks": [
+            {"web": {"uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc", "title": "sortlist.com"}},
+            {"web": {"uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/def", "title": "Sin dominio"}},
+        ],
+    },
+}]}
+
+
+class HttpGemini(Http):
+    def __init__(self, respuestas_gemini, **kw):
+        super().__init__(**kw)
+        self.respuestas_gemini = list(respuestas_gemini)
+        self.gemini = []
+
+    def post(self, url, json, auth=None, timeout=None, headers=None):
+        if "generativelanguage" in url:
+            self.gemini.append((url, json, headers))
+            return self.respuestas_gemini.pop(0)
+        return super().post(url, json, auth, timeout)
+
+
+def test_gemini_directo_con_la_clave_y_sin_dataforseo(monkeypatch):
+    monkeypatch.delenv("DATAFORSEO_LOGIN", raising=False)
+    monkeypatch.delenv("DATAFORSEO_PASSWORD", raising=False)
+    monkeypatch.setenv("GEMINI_API_KEY", "clave-gemini")
+    http = HttpGemini([Resp(GEMINI_API_OK)])
+    r = consultar(["agencia de marketing digital"], ciudad="Santiago", pais="Chile", dominio="dive.cl",
+                  empresa="DIVE", session=http, hoy=HOY, revisar_listas=False)
+    chatgpt, gemini = r["motores"]
+    assert (chatgpt["status"], chatgpt["razon"]) == ("sin dato", "sin DATAFORSEO_LOGIN")
+    assert http.posts == []
+    (url, cuerpo, headers), = http.gemini
+    assert "models/gemini-3.5-flash:generateContent" in url and "clave-gemini" not in url
+    assert headers == {"x-goog-api-key": "clave-gemini"}
+    assert cuerpo["tools"] == [{"google_search": {}}]
+    assert cuerpo["contents"][0]["parts"][0]["text"].startswith("¿Qué agencia de marketing digital")
+    assert gemini["status"] == "ok" and gemini["menciona_lead"] is True
+    assert gemini["recomendados"] == ["Bigbuda", "DIVE"] and gemini["posicion_lead"] == 2
+    assert gemini["fuentes_citadas"] == ["sortlist.com"]
+    assert gemini["busquedas_ia"] == ["mejores agencias marketing digital Santiago"]
+    assert gemini["costo_usd"] is None and gemini["fuente"].startswith("API de Gemini")
+    assert r["status"] == "ok"
+
+
+def test_gemini_directo_reintenta_si_se_pasa_de_la_cuota_por_minuto(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "clave-gemini")
+    monkeypatch.setenv("GEMINI_MODELO", "gemini-3.5-flash")
+    monkeypatch.setattr(ia_mod, "ESPERA_429", 0)
+    http = HttpGemini([Resp({}, 429), Resp(GEMINI_API_OK)])
+    r = consultar(["agencia"], ciudad="Santiago", pais="Chile", dominio="dive.cl", empresa="DIVE",
+                  session=http, hoy=HOY, revisar_listas=False, motores=("Gemini",))
+    assert len(http.gemini) == 2 and r["motores"][0]["status"] == "ok"
+    caido = consultar(["agencia"], ciudad="Santiago", pais="Chile", dominio="dive.cl",
+                      session=HttpGemini([Resp({}, 429)] * ia_mod.INTENTOS_GEMINI),
+                      hoy=HOY, revisar_listas=False, motores=("Gemini",))
+    assert caido["motores"][0]["razon"] == "http_429" and caido["status"] == "sin dato"
+
+
+def test_rota_a_la_key_siguiente_si_el_proyecto_esta_bloqueado_o_sin_cuota_del_dia(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "k1")
+    monkeypatch.setenv("GEMINI_API_KEY_2", "k2")
+    monkeypatch.setenv("GEMINI_API_KEY_3", "k3")
+    http = HttpGemini([
+        Resp({}, 429, '{"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier"}'),
+        Resp({}, 403, "PERMISSION_DENIED"),
+        Resp(GEMINI_API_OK),
+    ])
+    r = consultar(["agencia"], ciudad="Santiago", pais="Chile", dominio="dive.cl", empresa="DIVE",
+                  session=http, hoy=HOY, revisar_listas=False, motores=("Gemini",))
+    assert [h["x-goog-api-key"] for _, _, h in http.gemini] == ["k1", "k2", "k3"]
+    assert r["motores"][0]["status"] == "ok" and r["motores"][0]["fuente"].endswith("(gemini-3.5-flash)")
+
+
+def test_modelo_saturado_pasa_al_de_respaldo_sin_probar_otras_keys(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "k1")
+    monkeypatch.setenv("GEMINI_API_KEY_2", "k2")
+    monkeypatch.setattr(ia_mod, "ESPERA_429", 0)
+    http = HttpGemini([Resp({}, 503)] * ia_mod.INTENTOS_GEMINI + [Resp(GEMINI_API_OK)])
+    r = consultar(["agencia"], ciudad="Santiago", pais="Chile", dominio="dive.cl", empresa="DIVE",
+                  session=http, hoy=HOY, revisar_listas=False, motores=("Gemini",))
+    assert {h["x-goog-api-key"] for _, _, h in http.gemini} == {"k1"}
+    assert r["motores"][0]["fuente"].endswith("(gemini-3.1-flash-lite)")
