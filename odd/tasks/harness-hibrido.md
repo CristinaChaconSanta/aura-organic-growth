@@ -38,9 +38,10 @@ Give this repo its own AI harness that combines Gentle AI (Engram memory, ODD ta
 
 ## Progress
 - 2026-10-03: branch created from master at 694519e (Cursor's 8 commits). Document created.
+- 2026-10-03: T1 ce81c7a, T2 e2fcc72. Native review (high risk, granted, 4 lenses): R3-001 CRITICAL, stop gate could loop when the flag was unreadable. Fixed in 202b326 (fail-open unless flag is explicitly false; tests/test_harness_hooks.py, 5 cases). Targeted validation approved and acknowledged. Reviewed boundary: 202b326.
 
 ## Open decisions (Cristina)
 - LinkedIn: commit 694519e makes the contacts bot use the Aura LinkedIn account. Not pushed; revert with `git revert 694519e` if rejected.
 
 ## Next step
-T1 `init.sh`.
+T3 `AGENTS.md` map + slim CLAUDE.md (delegated writer).
