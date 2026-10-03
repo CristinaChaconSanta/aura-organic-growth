@@ -29,8 +29,8 @@ Give this repo its own AI harness that combines Gentle AI (Engram memory, ODD ta
   - Evidence: 57be6ee. CLAUDE.md 225 -> 64 lines, AGENTS.md 59, docs/reglas.md 109, operacion.md 47, productos.md 26. Content-preservation check: 0 original non-heading lines missing.
 - [x] T4 `CHECKPOINTS.md` + `progress/` convention for subagent results. Route: inline.
   - Evidence: 960d22e. CHECKPOINTS.md 26 lines; progress/current.md and history.md; init.sh checks AGENTS.md, CHECKPOINTS.md, progress/current.md and CLAUDE.md < 200 lines. ./init.sh exit 0, 175 passed.
-- [ ] T5 Global skill `nuevo-arnes` that scaffolds this template; optional Magika upload validation. Route: delegated writer.
-- [ ] T6 Slim global CLAUDE.md via Gentle AI (backup first). Route: inline, needs user confirmation.
+- [x] T5 Global skill `nuevo-arnes` that scaffolds this template; optional Magika upload validation. Route: delegated writer.
+- [x] T6 Slim global CLAUDE.md via Gentle AI (backup first). Route: inline, needs user confirmation.
 
 ## Acceptance criteria
 - `./init.sh` exits 0 on a clean tree and non-zero when a test fails.
@@ -42,8 +42,12 @@ Give this repo its own AI harness that combines Gentle AI (Engram memory, ODD ta
 - 2026-10-03: branch created from master at 694519e (Cursor's 8 commits). Document created.
 - 2026-10-03: T1 ce81c7a, T2 e2fcc72. Native review (high risk, granted, 4 lenses): R3-001 CRITICAL, stop gate could loop when the flag was unreadable. Fixed in 202b326 (fail-open unless flag is explicitly false; tests/test_harness_hooks.py, 5 cases). Targeted validation approved and acknowledged. Reviewed boundary: 202b326.
 
+- 2026-10-03: native review of T3-T4 (high risk, granted, 4 lenses): approved with no findings, acknowledged. Reviewed boundary: deb241b.
+- 2026-10-03: T5 skill at ~/.claude/skills/nuevo-arnes/ (SKILL.md 45 lines, template/, addons/magika.md). Evidence: throwaway Python project, init.sh exit 0 clean / 1 failing test, hook tests 5 passed, stop gate exit 2 / 0, bash -n OK. Node path and Magika add-on not exercised. Lives outside git.
+- 2026-10-03: T6 global ~/.claude/CLAUDE.md 441 -> 149 lines via `gentle-ai uninstall -agent claude-code -component sdd -y`. Backup: ~/.claude/backups/pre-slim-2026-10-03/. Persona block unchanged (diff). Review agents restored from backup to ~/.claude/agents/ (agent-routing still uses native review). SDD per project: `gentle-ai install --agent claude-code --component sdd --scope workspace` (verified in a probe dir; writes a 408-line .claude/CLAUDE.md, so only for projects that use SDD).
+
 ## Open decisions (Cristina)
 - LinkedIn: commit 694519e makes the contacts bot use the Aura LinkedIn account. Resolved 2026-10-03: Cristina authorized Cursor to use a different LinkedIn account.
 
 ## Next step
-T5 global skill `nuevo-arnes` (delegated writer).
+None. Feature complete; merge to master is Cristina's decision.
