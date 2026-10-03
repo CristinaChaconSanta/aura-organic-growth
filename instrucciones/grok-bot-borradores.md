@@ -36,12 +36,12 @@ Eso no se conserva: el pitch de automatización, Aura Flow, Aura Transform, y cu
 
 Estructura fija, frases nuevas en cada borrador. Si dos del día comparten una oración, reescribe una.
 
-El gancho es el hallazgo de IA: es el primero de la lista `hallazgos` de la fila (lo que respondió ChatGPT o Gemini cuando se les hizo la pregunta de un comprador). Si la fila no trae hallazgo de IA, usa el primero que traiga. Preséntalo como algo que encontraste con la herramienta de análisis de crecimiento orgánico de Cristina («con una herramienta de análisis de crecimiento orgánico que armó Cristina le preguntamos a ChatGPT...»). No menciones Google.
+El gancho es el hallazgo de IA: es el primero de la lista `hallazgos` de la fila (lo que respondió ChatGPT o Gemini cuando se les hizo la pregunta de un comprador). Si la fila no trae hallazgo de IA, usa el primero que traiga. Preséntalo en primera persona, como algo que Cristina encontró con la herramienta que armó para ver cómo aparece un negocio cuando un cliente le pregunta a una IA («armé una herramienta que le hace a ChatGPT la pregunta que haría un cliente tuyo, y le pregunté...»). No la llames scraper, algoritmo ni dashboard. No menciones Google.
 
 1. Primera línea, humana y de esta empresa. Cabe el hallazgo medido, tal como está en `texto` y `evidencia`: la pregunta, a quién recomendó la IA y que no mencionó a la empresa. Show, don't tell.
 2. Antes del dato, una validación de algo que el hallazgo ya muestra que hacen. El problema se enmarca en el entorno (lo que responden las IAs, el celular), no en un error del lector.
 3. Un solo dato. La brecha queda abierta: no expliques el servicio, no des el precio, no listes paquetes. Si el hallazgo es de velocidad, di los segundos con un decimal (4,8 segundos), nunca milisegundos. Una sola cifra por borrador; el umbral de 2,5 s solo va junto a los segundos medidos.
-4. Un CTA que se responde con sí, no o cuéntame más. Nada de menú (llamada, demo, info). Nada de «¿te cuento en 3 minutos?» si el 3 no está en la fila.
+4. Un CTA orientado al no: una pregunta cuyo «no» abre la puerta y deja al lector en control. Por ejemplo: «¿Sería una mala idea si te paso lo que encontré?», «¿Te molestaría si te lo comparto por acá?» (pt-BR: «Seria uma má ideia se eu te mandasse o que encontrei?»). Ofrece lo encontrado; no lo adjuntes ni pongas enlaces: se manda solo si responde. Nada de menú (llamada, demo, info). Nada de «¿te cuento en 3 minutos?» si el 3 no está en la fila. Este CTA es igual para todos los borradores del período: lo que se compara es el ancla (`dato` frente a `oportunidad`), no el CTA.
 5. Una sola frase BYAF, después del CTA. Una. No apiles otra liberación.
 6. Firma: `Cristina | Aura Studio | aurathinking.com`
 
@@ -57,7 +57,9 @@ Lenguaje de negocio, sin jerga. Si el hallazgo trae un término técnico, tradú
 - Más de un dato medido por borrador.
 - Prometer ranking, primer lugar, página 1 o una posición.
 - Prometer que una IA va a mencionar, citar o recomendar la marca. Contar lo que respondió hoy una IA sí se puede; prometer lo que responderá, no.
-- Jerga y nombres de herramientas: ms, milisegundos, LCP, HTML, Wayback, DataForSEO, PageSpeed, Serper, Labs, intersecciones, origen, crawler, schema. Los únicos nombres de herramienta permitidos son el motor de IA al que se le preguntó: ChatGPT o Gemini (y «IA»).
+- Jerga y nombres de herramientas: ms, milisegundos, LCP, HTML, Wayback, DataForSEO, PageSpeed, Serper, Labs, intersecciones, origen, crawler, schema, scraper, algoritmo, GEO, AEO, H1, H2, alt, meta descripciones, llms.txt, dashboard.
+- Enlaces. La única URL permitida es `aurathinking.com` en la firma.
+- Porcentajes o mejoras proyectadas («hasta 20% más», «el 80% de las consultas», «posición cero»). Solo lo medido en la fila. Los únicos nombres de herramienta permitidos son el motor de IA al que se le preguntó: ChatGPT o Gemini (y «IA»).
 - Las señales de cambio de portada (Wayback) y de subdominio nuevo son internas: no van en el borrador.
 - Automatización, automatizar, automação, automate, Aura Flow, Aura Transform.
 - Nombres de clientes, partners o marcas que no estén escritos en los hallazgos.

@@ -16,6 +16,7 @@ RAZONES = (
     "afirmacion_fuera_de_hallazgos",
     "jerga_tecnica",
     "mas_de_un_dato",
+    "enlace",
 )
 
 _PERMITIDOS = frozenset({"cristina", "aura", "studio"})
@@ -45,8 +46,11 @@ _IA = re.compile(
 )
 _JERGA = re.compile(
     r"(?<![a-z0-9])(?:ms|milisegundos?|milissegundos?|lcp|html|wayback|dataforseo|pagespeed|page\s+speed|"
-    r"serper|labs|intersecciones|origen(?:es)?|origem|crawlers?|schema)(?![a-z0-9])"
+    r"serper|labs|intersecciones|origen(?:es)?|origem|crawlers?|schema|scrap(?:er|ers|ing)|algoritmos?|"
+    r"geo|aeo|h[1-6]|alt|meta\s*descrip\w*|json-?ld|llms\.?txt|dashboard)(?![a-z0-9])"
 )
+# El primer email va en texto plano: el informe se ofrece y se manda solo si responden.
+_ENLACE = re.compile(r"https?://|www\.|\b[a-z0-9-]+\.(?:com|cl|mx|co|br|io|net|org)/", re.IGNORECASE)
 _FECHA = re.compile(
     r"\d{4}-\d{2}-\d{2}|\b\d{1,2}\s+de\s+[a-zA-Záéíóúñ]+(?:\s+de\s+\d{4})?|\b20\d{2}\b",
     re.IGNORECASE,
@@ -221,6 +225,8 @@ def validar(
         razones.append("jerga_tecnica")
     if _mas_de_un_dato(texto):
         razones.append("mas_de_un_dato")
+    if _ENLACE.search(texto.replace("aurathinking.com", "")):
+        razones.append("enlace")
     blob = _blob(hallazgos)
     if not _cita_medicion(texto, hallazgos) or _nombres_fuera(texto, blob, _permitidos(empresa, contacto)):
         razones.append("afirmacion_fuera_de_hallazgos")

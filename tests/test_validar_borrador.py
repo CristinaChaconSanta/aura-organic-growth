@@ -114,12 +114,19 @@ def test_nombrar_la_ia_no_es_promesa_pero_prometer_si():
 def test_rechaza_jerga_y_nombres_de_herramientas():
     for palabra in (
         "ms", "milisegundos", "LCP", "HTML", "Wayback", "DataForSEO", "PageSpeed", "Serper", "Labs",
-        "intersecciones", "origen", "crawler", "schema",
+        "intersecciones", "origen", "crawler", "schema", "scraper", "algoritmo", "GEO", "AEO", "H1", "H2",
+        "alt", "meta descripciones", "llms.txt", "dashboard",
     ):
         razones = validar(BORRADOR_IA + f"\nSegún {palabra} hay algo.", AI, empresa="DIVE", contacto="Camila")
         assert "jerga_tecnica" in razones, palabra
     assert "jerga_tecnica" not in validar(BORRADOR_IA + "\nLa IA lo ve distinto.", AI, empresa="DIVE", contacto="Camila")
     assert "jerga_tecnica" not in validar(BORRADOR_IA + "\nSolo mensajes y términos.", AI, empresa="DIVE", contacto="Camila")
+
+
+def test_el_primer_email_no_lleva_enlaces_salvo_la_firma():
+    con_enlace = BORRADOR_IA + "\nTe dejo el informe en https://informe.aura.cl/dive"
+    assert "enlace" in validar(con_enlace, AI, empresa="DIVE", contacto="Camila")
+    assert "enlace" not in validar(BORRADOR_IA + "\nCristina | Aura Studio | aurathinking.com", AI, empresa="DIVE", contacto="Camila")
 
 
 MEDIDAS = [{
