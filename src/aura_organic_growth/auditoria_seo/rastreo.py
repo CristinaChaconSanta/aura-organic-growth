@@ -41,9 +41,22 @@ SELECTORES = {
 }
 
 
+_ESCAPE = re.compile(r"%[0-9a-fA-F]{2}")
+
+
 def normalizar(url: str) -> str:
+    """%e2 y %E2 son la misma URL (RFC 3986): los escapes van en mayúscula."""
     partes = urlsplit(url.strip())
-    return urlunsplit((partes.scheme.lower(), partes.netloc.lower(), partes.path or "/", partes.query, ""))
+    mayus = lambda texto: _ESCAPE.sub(lambda m: m.group(0).upper(), texto)  # noqa: E731
+    return urlunsplit((partes.scheme.lower(), partes.netloc.lower(), mayus(partes.path or "/"), mayus(partes.query), ""))
+
+
+def fallida(fila: dict) -> bool:
+    """Sin respuesta usable: el servidor limitó (429/503) o no respondió. Se reintenta, no es un error."""
+    status = fila.get("status")
+    if isinstance(status, (int, float)) and status == status:
+        return int(status) in TEMPORALES
+    return True
 
 
 def host_base(host: str) -> str:
@@ -84,7 +97,8 @@ def rastrear(
     if destino.exists() and not retomar:
         destino.unlink()
     hechas = ya_rastreadas(destino) if destino.exists() else set()
-    faltan = [url for url in dict.fromkeys(urls) if normalizar(url) not in hechas]
+    previas = fallidas_previas(destino) if destino.exists() else []
+    faltan = [url for url in dict.fromkeys([*urls, *previas]) if normalizar(url) not in hechas]
     cupo = max_paginas - len(hechas)
     if cupo <= 0 or not faltan:
         return destino
@@ -114,7 +128,7 @@ def rastrear(
 
 
 def ya_rastreadas(destino: Path) -> set[str]:
-    """URLs pedidas y finales de un rastreo anterior, para retomarlo sin repetir."""
+    """URLs pedidas y finales de un rastreo anterior, para retomarlo sin repetir. Las fallidas se vuelven a pedir."""
     hechas: set[str] = set()
     with destino.open(encoding="utf-8") as archivo:
         for linea in archivo:
@@ -122,9 +136,25 @@ def ya_rastreadas(destino: Path) -> set[str]:
                 fila = json.loads(linea)
             except json.JSONDecodeError:
                 continue
+            if fallida(fila):
+                continue
             hechas.add(normalizar(str(fila.get("url") or "")))
             hechas.update(normalizar(u) for u in _lista(fila.get("redirect_urls")) if u)
     return hechas
+
+
+def fallidas_previas(destino: Path) -> list[str]:
+    """Las que fallaron en un rastreo anterior, también las de paginación que no están en el sitemap."""
+    salida: list[str] = []
+    with destino.open(encoding="utf-8") as archivo:
+        for linea in archivo:
+            try:
+                fila = json.loads(linea)
+            except json.JSONDecodeError:
+                continue
+            if fallida(fila) and fila.get("url"):
+                salida.append(normalizar(str(fila["url"])))
+    return list(dict.fromkeys(salida))
 
 
 def _lista(valor) -> list[str]:
@@ -183,14 +213,21 @@ def compactar(fila: dict, host: str) -> dict:
 
 
 def paginas(destino: Path, host: str) -> Iterator[dict]:
-    """Una vez por URL: advertools parte las listas largas y cada tramo puede repetir la paginación."""
+    """Una vez por URL: advertools parte las listas largas y cada tramo puede repetir la paginación.
+
+    Si un reintento respondió, la fila fallida anterior de esa URL se descarta.
+    """
+    logradas = ya_rastreadas(destino)
     vistas: set[str] = set()
     with destino.open(encoding="utf-8") as archivo:
         for linea in archivo:
             linea = linea.strip()
             if not linea:
                 continue
-            pagina = compactar(json.loads(linea), host)
+            fila = json.loads(linea)
+            pagina = compactar(fila, host)
+            if fallida(fila) and pagina["url"] in logradas:
+                continue
             if pagina["url"] not in vistas:
                 vistas.add(pagina["url"])
                 yield pagina

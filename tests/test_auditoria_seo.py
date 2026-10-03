@@ -209,6 +209,43 @@ def test_login_carrito_y_checkout_no_cuentan_como_enlaces():
         assert not es_interna(f"{BASE}{ruta}", host)
 
 
+def test_escapes_en_minuscula_y_mayuscula_son_la_misma_url():
+    from aura_organic_growth.auditoria_seo.rastreo import normalizar
+
+    assert normalizar(f"{BASE}/products/silla-%e2%9c%a8") == normalizar(f"{BASE}/products/silla-%E2%9C%A8")
+
+
+def test_retomar_vuelve_a_pedir_las_limitadas_y_gana_el_reintento(tmp_path):
+    import json
+
+    from aura_organic_growth.auditoria_seo.rastreo import paginas, ya_rastreadas
+
+    archivo = tmp_path / "rastreo.jl"
+    filas = [
+        {"url": f"{BASE}/collections/ollas", "status": 429},
+        {"url": f"{BASE}/products/olla", "status": 200},
+        {"url": f"{BASE}/collections/ollas", "status": 200, "links_url": f"{BASE}/products/olla"},
+    ]
+    archivo.write_text(json.dumps(filas[0]) + "\n" + json.dumps(filas[1]) + "\n", encoding="utf-8")
+    assert ya_rastreadas(archivo) == {f"{BASE}/products/olla"}
+    from aura_organic_growth.auditoria_seo.rastreo import fallidas_previas
+
+    assert fallidas_previas(archivo) == [f"{BASE}/collections/ollas"]
+    with archivo.open("a", encoding="utf-8") as salida:
+        salida.write(json.dumps(filas[2]) + "\n")
+    coleccion = next(p for p in paginas(archivo, "tienda.co") if p["url"].endswith("/ollas"))
+    assert coleccion["status"] == 200 and coleccion["enlaces"] == [(f"{BASE}/products/olla", True)]
+
+
+def test_paginas_sin_respuesta_hacen_no_determinables_las_huerfanas():
+    paginas = [_pagina(f"{BASE}/"), _pagina(f"{BASE}/sola")] + [_pagina(f"{BASE}/c{i}", status=429) for i in range(3)]
+    sitemap = [f"{BASE}/", f"{BASE}/sola"] + [f"{BASE}/c{i}" for i in range(3)]
+    verificadas = {f"{BASE}/c{i}": {"estado": "ok", "status": 200, "cadena": []} for i in range(3)}
+    resultado = indexacion.analizar(paginas, sitemap, verificadas, [], portada=f"{BASE}/")
+    assert "huerfanas" not in _ids(resultado)
+    assert resultado["resumen"]["huerfanas_y_profundidad"].startswith("no determinable: 3 páginas")
+
+
 def test_un_429_es_no_determinable_y_nunca_enlace_roto():
     paginas = [_pagina(f"{BASE}/", enlaces=[f"{BASE}/a", f"{BASE}/b"]), _pagina(f"{BASE}/a", status=429)]
     verificadas = {f"{BASE}/b": {"estado": "limitada", "status": 429, "cadena": []}}

@@ -26,6 +26,8 @@ F_ENLACES = "https://developers.google.com/search/docs/crawling-indexing/links-c
 
 MAX_PROFUNDIDAD = 3
 COBERTURA_MINIMA = 0.95
+# Una colección sin respuesta esconde los enlaces a todos sus productos.
+MAX_FALLIDAS = 0.01
 MIN_PALABRAS_DUPLICADO = 50
 EJEMPLOS = 5
 SIN_INDEXAR = {"transaccional", "busqueda"}
@@ -385,7 +387,10 @@ def analizar(
         elif distancia[real] > MAX_PROFUNDIDAD:
             profundas.append({"url": url, "clics_desde_portada": distancia[real]})
     cobertura = 1 - len(sin_rastrear) / total_sm if total_sm else 0.0
-    if cobertura < COBERTURA_MINIMA:
+    fallidas = sum(1 for p in paginas if p["status"] in TEMPORALES or (p["status"] is None and p["error"]))
+    share_fallidas = fallidas / len(paginas) if paginas else 1.0
+    medibles = cobertura >= COBERTURA_MINIMA and share_fallidas <= MAX_FALLIDAS
+    if not medibles:
         huerfanas, profundas = [], []
     hallazgos += [
         _hallazgo("huerfanas", "Páginas del sitemap sin ningún enlace interno", huerfanas, base=total_sm,
@@ -426,9 +431,12 @@ def analizar(
             "por_plantilla": dict(Counter(plantilla(p["url"], plataforma_sitio) for p in paginas).most_common()),
             "sitemap_sin_rastrear": len(sin_rastrear),
             "cobertura_sitemap": round(cobertura, 3),
+            "paginas_fallidas": fallidas,
             "huerfanas_y_profundidad": (
-                "medidas" if cobertura >= COBERTURA_MINIMA
+                "medidas" if medibles
                 else f"no determinable: el rastreo cubrió {cobertura:.0%} del sitemap"
+                if cobertura < COBERTURA_MINIMA
+                else f"no determinable: {fallidas} páginas sin respuesta pueden esconder enlaces"
             ),
             "enlaces_internos_distintos": total_enlazadas,
             "enlaces_sin_verificar": sin_verificar,
