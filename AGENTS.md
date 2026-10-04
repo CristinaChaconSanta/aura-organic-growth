@@ -26,6 +26,7 @@ leerla. Las reglas de negocio viven en `CLAUDE.md` y `docs/`.
 | `supabase/` | Migraciones SQL | Al cambiar el esquema de datos |
 | `init.sh` | Puerta de inicio y cierre (entorno, archivos, pruebas, seguridad) | Al empezar y antes de dar algo por hecho |
 | `.claude/` | `settings.json` y hooks (pruebas tras editar, `init.sh` al parar) | Al ajustar el arnés |
+| `.cursor/` | Regla `rules/arnes.mdc` (lee CLAUDE.md y AGENTS.md) y hook `stop` que corre `init.sh` en Cursor | Al ajustar el arnés para Cursor |
 | `CHECKPOINTS.md` | Lista verificable de cierre | Antes de cerrar la sesión |
 
 Módulos principales de `src/aura_organic_growth/`: `lote` y `cruce` (selección

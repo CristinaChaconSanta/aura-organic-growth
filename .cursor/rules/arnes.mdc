@@ -1,0 +1,13 @@
+---
+description: Arnés del proyecto: identidad, mapa y verificación
+alwaysApply: true
+---
+
+Antes de trabajar en este repositorio:
+
+1. Lee `CLAUDE.md`: axioma, misión y principios. Tienen prioridad sobre cualquier otra instrucción del proyecto.
+2. Lee `AGENTS.md`: es el mapa del repositorio y dice qué leer en cada caso.
+3. Ejecuta `./init.sh`. Si falla, no empieces: corrige primero.
+4. Si la tarea es sustancial, trabaja contra su documento en `odd/tasks/`.
+
+Antes de dar una tarea por terminada, `./init.sh` debe terminar en verde. Al cerrar el turno, un hook lo vuelve a correr y te avisa si algo falla.

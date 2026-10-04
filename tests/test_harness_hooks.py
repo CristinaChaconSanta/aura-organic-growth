@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import subprocess
@@ -41,3 +42,49 @@ def test_blocks_once_when_flag_is_false(failing_repo):
 ])
 def test_never_blocks_when_flag_is_true_missing_or_unreadable(failing_repo, stdin):
     assert run_gate(failing_repo, stdin) == 0
+
+
+CURSOR_GATE = REPO / ".cursor" / "hooks" / "stop-gate.sh"
+
+
+def make_cursor_repo(tmp_path: Path, init_exit: int) -> Path:
+    hooks = tmp_path / ".cursor" / "hooks"
+    hooks.mkdir(parents=True)
+    shutil.copy(CURSOR_GATE, hooks / "stop-gate.sh")
+    init = tmp_path / "init.sh"
+    init.write_text(f"#!/usr/bin/env bash\necho '[FAIL]  probe'\nexit {init_exit}\n")
+    init.chmod(0o755)
+    return tmp_path
+
+
+def run_cursor_gate(repo: Path, stdin: str) -> subprocess.CompletedProcess:
+    env = {**os.environ, "CURSOR_PROJECT_DIR": str(repo)}
+    return subprocess.run(
+        ["bash", str(repo / ".cursor" / "hooks" / "stop-gate.sh")],
+        input=stdin, text=True, capture_output=True, env=env,
+    )
+
+
+def test_cursor_gate_sends_followup_when_init_fails(tmp_path):
+    result = run_cursor_gate(make_cursor_repo(tmp_path, 1), '{"status": "completed", "loop_count": 0}')
+    assert result.returncode == 0
+    assert "probe" in json.loads(result.stdout)["followup_message"]
+
+
+@pytest.mark.parametrize("stdin", [
+    '{"status": "completed", "loop_count": 2}',
+    '{"status": "aborted", "loop_count": 0}',
+    '{"status": "error", "loop_count": 0}',
+    "",
+    "not json",
+    "{}",
+])
+def test_cursor_gate_stays_silent_on_loop_limit_abort_or_bad_input(tmp_path, stdin):
+    result = run_cursor_gate(make_cursor_repo(tmp_path, 1), stdin)
+    assert result.returncode == 0
+    assert result.stdout == ""
+
+
+def test_cursor_gate_stays_silent_when_init_passes(tmp_path):
+    result = run_cursor_gate(make_cursor_repo(tmp_path, 0), '{"status": "completed", "loop_count": 0}')
+    assert result.stdout == ""
