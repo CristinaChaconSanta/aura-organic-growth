@@ -4,6 +4,9 @@
     python scripts/auditoria_seo.py https://www.sitio.com --max-paginas 300   # prueba corta
     python scripts/auditoria_seo.py https://www.sitio.com --retomar           # sigue un rastreo cortado
     python scripts/auditoria_seo.py https://www.sitio.com --solo-analizar     # reusa el rastreo guardado
+    python scripts/auditoria_seo.py https://www.sitio.com --tiempo-max 300    # corta a los 5 minutos
+
+Para muchos sitios, scripts/auditoria_seo_lote.py.
 
 Salida en data/auditorias/<dominio>-<fecha>/seo/: resumen.json y un CSV por revisión.
 """
@@ -57,6 +60,7 @@ def main() -> None:
     parser.add_argument("--max-verificar", type=int, default=3000)
     parser.add_argument("--retomar", action="store_true")
     parser.add_argument("--solo-analizar", action="store_true")
+    parser.add_argument("--tiempo-max", type=int, default=0, help="segundos de rastreo; 0 = sin tope")
     args = parser.parse_args()
 
     inicio = time.time()
@@ -80,7 +84,9 @@ def main() -> None:
     print(f"plataforma {sitio}; {len(urls_sitemap)} URLs en {len(inv['sitemaps'])} sitemaps", flush=True)
 
     archivo = salida / "rastreo.jl"
+    cortado = False
     if not args.solo_analizar:
+        inicio_rastreo = time.time()
         rastreo.rastrear(
             [portada] + urls_sitemap,
             archivo,
@@ -89,7 +95,11 @@ def main() -> None:
             concurrencia=args.concurrencia,
             max_paginas=args.max_paginas,
             retomar=args.retomar,
+            tiempo_max=args.tiempo_max,
         )
+        cortado = bool(args.tiempo_max) and time.time() - inicio_rastreo >= args.tiempo_max * 0.95
+    if not archivo.exists():
+        archivo.touch()
     paginas = list(rastreo.paginas(archivo, host))
     print(f"rastreadas {len(paginas)} páginas en {time.time() - inicio:.0f}s", flush=True)
 
@@ -111,6 +121,7 @@ def main() -> None:
         "sitemaps": inv["sitemaps"],
         "robots_sitemaps": leido["sitemaps"],
         "duracion_s": round(time.time() - inicio),
+        "cortado_por_tiempo": cortado,
         **resultado["resumen"],
         "hallazgos": resultado["hallazgos"],
     }

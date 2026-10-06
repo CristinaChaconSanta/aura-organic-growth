@@ -88,7 +88,9 @@ def rastrear(
     concurrencia: int = 4,
     max_paginas: int = 30_000,
     retomar: bool = False,
+    tiempo_max: int = 0,
 ) -> Path:
+    """tiempo_max en segundos (0 = sin tope); lo cortado se sigue con retomar=True."""
     import advertools as adv
 
     bin_entorno = str(Path(sys.executable).parent)
@@ -119,6 +121,7 @@ def rastrear(
             "AUTOTHROTTLE_ENABLED": True,
             "AUTOTHROTTLE_TARGET_CONCURRENCY": max(1.0, concurrencia / 2),
             "CLOSESPIDER_PAGECOUNT": cupo,
+            "CLOSESPIDER_TIMEOUT": tiempo_max,
             "RETRY_TIMES": 3,
             "DOWNLOAD_TIMEOUT": 90,
             "LOG_LEVEL": "WARNING",
@@ -224,7 +227,10 @@ def paginas(destino: Path, host: str) -> Iterator[dict]:
             linea = linea.strip()
             if not linea:
                 continue
-            fila = json.loads(linea)
+            try:
+                fila = json.loads(linea)
+            except json.JSONDecodeError:
+                continue
             pagina = compactar(fila, host)
             if fallida(fila) and pagina["url"] in logradas:
                 continue

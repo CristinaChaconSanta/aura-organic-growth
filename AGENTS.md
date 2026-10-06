@@ -37,6 +37,16 @@ lectura del sitio), `crux`, `serp`, `serper`, `labs`, `competidores`,
 `observados`, `staging`, `supabase_rest`, `lead_intel` (puente de solo
 lectura a `aura-lead-intelligence`) y `auditoria_seo/`.
 
+Dos análisis distintos, no confundirlos:
+
+- `scripts/correr_lote.py` y `scripts/ia_lote.py`: el diagnóstico del primer
+  contacto (prueba con IA, lectura para IA, velocidad, madurez). Rápido.
+- `scripts/auditoria_seo_lote.py`: la auditoría SEO profunda de sitio completo
+  (rastreo de todo el sitemap; canonical, noindex, duplicados, enlaces rotos,
+  redirecciones, huérfanas, profundidad). Es la que se pide como «análisis
+  profundo» o «como el de Flamingo». Los sitios que tardarían más de 5 minutos
+  van al final. Un solo sitio: `scripts/auditoria_seo.py URL`.
+
 ## 3. Reglas duras
 
 - Ninguna tarea está terminada sin `./init.sh` en verde.
