@@ -28,6 +28,15 @@ from aura_organic_growth.auditoria_seo import indexacion, inventario, rastreo, r
 from aura_organic_growth.auditoria_seo.plantillas import plataforma  # noqa: E402
 
 
+def _pedir_con_reintento(http: requests.Session, url: str, intentos: int = 3) -> requests.Response | None:
+    for intento in range(intentos):
+        try:
+            return http.get(url, headers={"User-Agent": rastreo.UA}, timeout=30)
+        except requests.RequestException:
+            time.sleep(10 * (intento + 1))
+    return None
+
+
 def _escribir_csv(ruta: Path, filas: list[dict]) -> None:
     if not filas:
         return
@@ -57,7 +66,9 @@ def main() -> None:
     salida.mkdir(parents=True, exist_ok=True)
     http = requests.Session()
 
-    texto_robots = http.get(f"{urlsplit(portada).scheme}://{host}/robots.txt", headers={"User-Agent": rastreo.UA}, timeout=30)
+    texto_robots = _pedir_con_reintento(http, f"{urlsplit(portada).scheme}://{host}/robots.txt")
+    if texto_robots is None:
+        raise SystemExit(f"{host} no respondió robots.txt en 3 intentos: sin saber sus reglas no se rastrea")
     leido = robots.leer(texto_robots.text if texto_robots.ok else "")
     reglas = robots.reglas_para(leido, "googlebot")
     resp = http.get(portada, headers={"User-Agent": rastreo.UA}, timeout=60)

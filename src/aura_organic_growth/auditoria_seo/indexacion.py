@@ -178,8 +178,8 @@ def _entrantes(paginas: list[dict]) -> dict[str, list]:
     return entrantes
 
 
-def _profundidades(paginas: list[dict], portada: str) -> dict[str, int]:
-    alias = {p["pedida"]: p["url"] for p in paginas}
+def _profundidades(paginas: list[dict], portada: str, alias: dict[str, str]) -> dict[str, int]:
+    """Clics desde la portada; un enlace que redirige cuenta como enlace a su destino final."""
     vecinos = {p["url"]: [alias.get(d, d) for d, seguir in p["enlaces"] if seguir] for p in paginas}
     inicio = alias.get(portada, portada)
     distancia = {inicio: 0}
@@ -370,8 +370,13 @@ def analizar(
                    "fuera_del_sitemap": fuera, "parametros": list(grupos.values()),
                    "producto_en_coleccion": en_coleccion["filas"]})
 
-    distancia = _profundidades(paginas, portada)
     alias = {p["pedida"]: p["url"] for p in paginas}
+    for destino in entrantes:
+        estado = estados.de(destino)
+        if estado and estado.get("cadena") and estado.get("final"):
+            alias.setdefault(destino, estado["final"])
+    llegan = set(entrantes) | {alias[d] for d in entrantes if d in alias}
+    distancia = _profundidades(paginas, portada, alias)
     huerfanas, profundas, inalcanzables = [], [], 0
     for url in en_sitemap:
         estado = estados.de(url)
@@ -380,7 +385,7 @@ def analizar(
         real = alias.get(url, url)
         if real == alias.get(portada, portada):
             continue
-        if url not in entrantes and real not in entrantes:
+        if url not in llegan and real not in llegan:
             huerfanas.append({"url": url})
         elif real not in distancia:
             inalcanzables += 1

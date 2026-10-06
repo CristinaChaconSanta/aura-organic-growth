@@ -246,6 +246,15 @@ def test_paginas_sin_respuesta_hacen_no_determinables_las_huerfanas():
     assert resultado["resumen"]["huerfanas_y_profundidad"].startswith("no determinable: 3 páginas")
 
 
+def test_un_enlace_que_redirige_no_deja_huerfano_a_su_destino():
+    paginas = [_pagina(f"{BASE}/", enlaces=[f"{BASE}/a2-key/"]), _pagina(f"{BASE}/cognita/a2-key/")]
+    verificadas = {f"{BASE}/a2-key/": {"estado": "ok", "status": 200, "final": f"{BASE}/cognita/a2-key/",
+                                       "cadena": [(f"{BASE}/a2-key/", 301)]}}
+    resultado = indexacion.analizar(paginas, [f"{BASE}/", f"{BASE}/cognita/a2-key/"], verificadas, [], portada=f"{BASE}/")
+    assert "huerfanas" not in _ids(resultado)
+    assert "enlaces_a_redireccion" in _ids(resultado)
+
+
 def test_un_429_es_no_determinable_y_nunca_enlace_roto():
     paginas = [_pagina(f"{BASE}/", enlaces=[f"{BASE}/a", f"{BASE}/b"]), _pagina(f"{BASE}/a", status=429)]
     verificadas = {f"{BASE}/b": {"estado": "limitada", "status": 429, "cadena": []}}
