@@ -37,15 +37,21 @@ lectura del sitio), `crux`, `serp`, `serper`, `labs`, `competidores`,
 `observados`, `staging`, `supabase_rest`, `lead_intel` (puente de solo
 lectura a `aura-lead-intelligence`) y `auditoria_seo/`.
 
-Dos análisis distintos, no confundirlos:
+Un análisis por sitio (`analisis.siempre`). Cada medición con web corre el
+diagnóstico y la auditoría SEO juntos. La madurez no descarta. El inventario
+incompleto no saca al cliente. Title vacío, meta vacía, H1 vacío y página de venta rota
+son oportunidad observada (`oportunidades.py`), leídas del rastreo con advertools.
 
-- `scripts/correr_lote.py` y `scripts/ia_lote.py`: el diagnóstico del primer
-  contacto (prueba con IA, lectura para IA, velocidad, madurez). Rápido.
-- `scripts/auditoria_seo_lote.py`: la auditoría SEO profunda de sitio completo
-  (rastreo de todo el sitemap; canonical, noindex, duplicados, enlaces rotos,
-  redirecciones, huérfanas, profundidad). Es la que se pide como «análisis
-  profundo» o «como el de Flamingo». Los sitios que tardarían más de 5 minutos
-  van al final. Un solo sitio: `scripts/auditoria_seo.py URL`.
+Dos mediciones, un registro:
+
+- `scripts/correr_lote.py` y `scripts/ia_lote.py`: prueba con IA, lectura para
+  IA, velocidad y la portada. Rápido.
+- `scripts/auditoria_seo_lote.py`: auditoría SEO de sitio completo (rastreo
+  del sitemap; canonical, noindex, duplicados, enlaces rotos, redirecciones,
+  huérfanas, profundidad, y las oportunidades de título, meta y página rota).
+  Es la que se pide como «análisis profundo» o «como el de Flamingo». Los
+  sitios que tardarían más de 5 minutos van al final. Un solo sitio:
+  `scripts/auditoria_seo.py URL`.
 
 ## 3. Reglas duras
 

@@ -1,4 +1,4 @@
-"""Madurez digital antes de auditar. Baja o sin web no entra a la auditoría."""
+"""Madurez digital. Se anota con evidencia. No descarta a un lead que tiene web."""
 
 from __future__ import annotations
 
@@ -50,8 +50,10 @@ def clasificar(
     llms_txt: bool | None = None,
     ultima_publicacion: dict | None = None,
 ) -> dict:
-    """La evidencia es la marca encontrada. Sin web, o sin ninguna señal, no se audita.
+    """La evidencia es la marca encontrada. La madurez no decide si el lead se analiza.
 
+    Sin web no hay sitio que medir: la ruta es landing. Con web, la ruta es auditar
+    aunque la madurez sea baja o la portada no haya respondido.
     llms.txt o datos estructurados ricos (Organization, LocalBusiness, FAQPage...) son
     una señal de sitio trabajado: cuentan como una sola, así que la madurez no es «baja».
     La fecha del feed del blog (senales.ultima_publicacion) manda sobre una fecha
@@ -67,7 +69,7 @@ def clasificar(
     if html is None:
         return {
             "madurez": "no determinable",
-            "ruta": "no auditar",
+            "ruta": "auditar",
             "evidencia": [{"senal": "sitio", "nivel": "no determinable", "detalle": "la portada no respondió"}],
         }
     evidencia = []
@@ -109,7 +111,7 @@ def clasificar(
         madurez = "media"
     else:
         madurez = "baja"
-    ruta = "auditar" if madurez in ("media", "alta") else "derivar a landing"
+    ruta = "auditar"
     return {"madurez": madurez, "ruta": ruta, "evidencia": evidencia or [
         {"senal": "crm, pauta, analitica, blog", "nivel": "observado", "detalle": "ninguna en la portada"},
     ]}

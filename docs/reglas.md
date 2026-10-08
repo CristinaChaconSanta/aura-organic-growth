@@ -41,10 +41,10 @@
 - **Lote:** los 10 leads con mejor score en Supabase, sin PFS. Se guarda
   el país de cada empresa tal como está en la ficha; si falta, «sin dato».
   Antes de auditar se clasifica la madurez con evidencia (CRM, etiqueta de
-  pauta, analítica, blog con fecha de los últimos 6 meses). Madurez media
-  o alta sigue a la auditoría. Madurez baja o sin web se marca «derivar a
-  landing» y no se audita. Si la portada no responde, la madurez queda
-  «no determinable» y tampoco se audita.
+  pauta, analítica, blog con fecha de los últimos 6 meses). La madurez se
+  anota y no descarta: todo lead con web entra al análisis, también con
+  madurez baja o con la portada sin respuesta. Sin web se marca «derivar a
+  landing» porque no hay sitio que medir.
 - **Places:** una Text Search por lead, la ficha de Google. Sin contexto
   de lugar. Se guarda solo el `place_id`. No se precarga ni se almacena
   el resto del contenido de Places. Si una nota o las reseñas salen al
@@ -91,6 +91,14 @@
   más), subdominio nuevo en crt.sh, vacante de marketing, SEO o contenido
   si la página la trae. Expansión, sede y lanzamiento solo con evidencia.
   La pauta activa la anota Cristina a mano.
+- **Oportunidades medidas:** en una página que respondió 200, el título vacío,
+  la meta description vacía y el H1 vacío son oportunidad observada. Una
+  página de venta (portada, producto, colección o servicio) que responde
+  4xx o 5xx también. Un 429, un 503 o una página sin respuesta siguen en
+  «no determinable»: no se inventa el vacío ni se llama página rota.
+  El inventario incompleto no saca al cliente; lo no rastreado no se afirma
+  y lo ya medido sí. Cada medición con web corre el diagnóstico y la
+  auditoría SEO juntos. Un rastreo de hoy ya completo no se repite.
 - **Hallazgos:** cada uno con nivel observado, inferido o no determinable.
   Los 5 se ordenan por consecuencia: primero los de IA (prueba en vivo y
   lectura del sitio para IA), después velocidad y errores de todo el sitio

@@ -270,6 +270,7 @@ def test_rastreo_incompleto_no_afirma_huerfanas():
     resultado = indexacion.analizar(paginas, sitemap, {}, [], portada=f"{BASE}/")
     assert "huerfanas" not in _ids(resultado)
     assert resultado["resumen"]["huerfanas_y_profundidad"].startswith("no determinable")
+    assert _ids(resultado)["title_vacio"]["nivel"] == "observado"
 
 
 class _Respuesta:

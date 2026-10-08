@@ -1,4 +1,7 @@
+import json
+
 from aura_organic_growth.auditoria_seo import lote
+from aura_organic_growth.auditoria_seo.ejecutar import auditar
 
 
 def _ficha(lead_id, empresa, dominio, url, score):
@@ -48,5 +51,19 @@ def test_la_fila_del_lote_cuenta_cada_hallazgo():
     resumen = {"plataforma": "shopify", "urls_en_sitemap": 100, "cobertura_sitemap": 1.0, "paginas_rastreadas": 101,
                "hallazgos": [{"id": "duplicados_exactos", "afectadas": 12}]}
     fila = lote.fila_resumen({"empresa": "X", "dominio": "x.co", "url": "https://x.co"}, resumen, vuelta=1)
-    assert fila["estado"] == "completo" and fila["hallazgos"] == {"duplicados_exactos": 12}
-    assert lote.fila_resumen({"url": "https://y.co"}, None, vuelta=1, error="timeout")["estado"] == "error"
+    assert fila["estado"] == "completo" and fila["en_analisis"] is True
+    assert fila["hallazgos"] == {"duplicados_exactos": 12}
+    parcial = lote.fila_resumen(
+        {"empresa": "Alterra", "url": "https://alterra.co"},
+        {"urls_en_sitemap": 500, "cobertura_sitemap": 0.93, "hallazgos": [{"id": "title_vacio", "afectadas": 4}]},
+        vuelta=1,
+    )
+    assert parcial["estado"] == "incompleto" and parcial["en_analisis"] is True
+    caido = lote.fila_resumen({"url": "https://y.co"}, None, vuelta=1, error="timeout")
+    assert caido["estado"] == "error" and caido["en_analisis"] is True
+
+
+def test_un_rastreo_de_hoy_completo_no_se_repite(tmp_path):
+    resumen = {"urls_en_sitemap": 10, "cobertura_sitemap": 1.0, "sitio": "https://x.co/", "hallazgos": []}
+    (tmp_path / "resumen.json").write_text(json.dumps(resumen), encoding="utf-8")
+    assert auditar("https://x.co", salida=tmp_path, reusar=True)["sitio"] == "https://x.co/"

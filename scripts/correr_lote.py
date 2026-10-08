@@ -1,7 +1,7 @@
-"""Selecciona el lote, clasifica la madurez y mide solo media o alta.
+"""Selecciona el lote, anota la madurez y mide a todo lead con web.
 
-Primer paso de cada lead con web: la prueba en vivo con IA y la lectura del
-sitio para IA, aunque la madurez sea baja. Después, velocidad y búsquedas.
+La madurez no descarta. Primer paso: la prueba en vivo con IA y la lectura del
+sitio para IA. Después, velocidad, búsquedas, la portada y la auditoría SEO del mismo sitio.
 Guarda país, place_id y el problema más grave. No guarda contenido de Places.
 """
 
@@ -30,9 +30,13 @@ from aura_organic_growth.ia import clave_gemini, consultar as consultar_ia, hall
 from aura_organic_growth.oferta import evidencia as evidencia_de, oferta as oferta_de  # noqa: E402
 from aura_organic_growth.legibilidad_ia import hallazgos_de_legibilidad, medir as medir_legibilidad  # noqa: E402
 from aura_organic_growth.lote import descargar_fichas, guardar, seleccionar  # noqa: E402
+from aura_organic_growth.analisis import siempre, unir  # noqa: E402
+from aura_organic_growth.auditoria_seo.ejecutar import auditar  # noqa: E402
+from aura_organic_growth.auditoria_seo.lote import TOPE_RAPIDO_S  # noqa: E402
 from aura_organic_growth.cruce import idioma_de  # noqa: E402
 from aura_organic_growth.madurez import clasificar  # noqa: E402
 from aura_organic_growth.observados import de as observado_de, url_de  # noqa: E402
+from aura_organic_growth.oportunidades import de_paginas, desde_respuesta  # noqa: E402
 from aura_organic_growth.paginas import faltan  # noqa: E402
 from aura_organic_growth.places_ficha import ficha_google, ids_por_categoria, para_guardar  # noqa: E402
 from aura_organic_growth.senales import pauta_activa, subdominios_nuevos, ultima_publicacion, vacante, wayback  # noqa: E402
@@ -216,6 +220,9 @@ def _medir(lead: dict) -> dict:
         "pais": lead["pais"],
         "ciudad": lead["ciudad"],
         "score": lead["score"],
+        "url": url,
+        "dominio": lead["dominio"],
+        "en_analisis": True,
         "madurez": madurez["madurez"],
         "ruta": madurez["ruta"],
         "evidencia_madurez": madurez["evidencia"],
@@ -224,7 +231,7 @@ def _medir(lead: dict) -> dict:
     if tiene_web:
         fila.update({"ia": ia, "legibilidad_ia": legibilidad, "hallazgos": cinco(hallazgos_ia)})
     if madurez["ruta"] != "auditar":
-        # Madurez baja sigue derivando a landing; la prueba con IA ya quedó guardada.
+        # Sin web no hay sitio que medir. Con web la madurez no corta esta función.
         fila["problema"] = (
             "derivar a landing" if madurez["ruta"] == "derivar a landing" else "sin auditar: la portada no respondió"
         )
@@ -239,6 +246,8 @@ def _medir(lead: dict) -> dict:
             "tipo": "error",
             "nivel": "observado",
         })
+    if estado is not None:
+        hallazgos.extend(de_paginas([desde_respuesta(url, estado, html or "")]))
     velocidad = _seguro(lambda: campo(origen), {"lcp": "sin datos de campo", "nivel": "no determinable", "razon": "sin respuesta"})
     hallazgo = hallazgo_velocidad(velocidad, HOY)
     if hallazgo:
@@ -262,7 +271,12 @@ def _medir(lead: dict) -> dict:
         "hallazgos": cinco(hallazgos),
     })
     fila["problema"] = problema_mas_grave(hallazgos)
-    return fila
+    return unir(fila)
+
+
+def _auditar_junto(url: str) -> dict:
+    """El profundo entra en la misma medición. Si hoy ya quedó completo, no se rastrea otra vez."""
+    return auditar(url, tiempo_max=TOPE_RAPIDO_S, reusar=True)
 
 
 def main() -> None:
@@ -273,7 +287,7 @@ def main() -> None:
     vistos: set[tuple[str, str]] = set()
     resumen = []
     for lead in lote:
-        fila = _medir(lead)
+        fila = siempre(_medir(lead), _auditar_junto)
         if fila["ruta"] == "auditar":
             clave = (lead["industria"], lead["ciudad"])
             if clave not in vistos and lead["industria"] != "sin dato" and lead["ciudad"] != "sin dato":

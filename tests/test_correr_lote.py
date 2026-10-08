@@ -15,6 +15,13 @@ def _sin_feed_en_red(monkeypatch):
     )
     # El script carga el .env real: sin esto la pregunta la escribiría Gemini de verdad.
     monkeypatch.setattr("aura_organic_growth.ia.clave_gemini", lambda: "")
+    # Madurez baja ya no corta la medición: estas llamadas no salen a la red.
+    sin_dato = {"status": "sin dato", "nivel": "no determinable", "llamadas": 0, "nombres": []}
+    monkeypatch.setattr("aura_organic_growth.crux.campo", lambda origen: {"nivel": "no determinable", "lcp": "sin datos de campo"})
+    monkeypatch.setattr("aura_organic_growth.places_ficha.ficha_google", lambda *a, **k: sin_dato)
+    monkeypatch.setattr("aura_organic_growth.entidad.entidad", lambda *a, **k: sin_dato)
+    monkeypatch.setattr("aura_organic_growth.senales.wayback", lambda *a, **k: {"senal": "cambio de portada", "nivel": "no determinable"})
+    monkeypatch.setattr("aura_organic_growth.senales.subdominios_nuevos", lambda *a, **k: {"senal": "subdominio nuevo", "nivel": "no determinable", "nombres": []})
 
 
 RESPUESTA_IA = {
@@ -41,7 +48,7 @@ def _lead(**cambios):
     }
 
 
-def test_madurez_baja_corre_la_prueba_con_ia_y_sigue_derivando_a_landing(monkeypatch):
+def test_madurez_baja_sigue_en_el_analisis(monkeypatch):
     lote = _cargar()
     llamadas = []
     monkeypatch.setattr(lote, "_portada", lambda url: (200, "<html><title>Hola</title></html>"))
@@ -49,13 +56,16 @@ def test_madurez_baja_corre_la_prueba_con_ia_y_sigue_derivando_a_landing(monkeyp
     monkeypatch.setattr(lote, "medir_legibilidad", lambda url, html=None: llamadas.append(("leg",)) or {
         "url": url, "fecha": "2026-09-30", "robots": {}, "llms_txt": False, "schema_tipos": [],
     })
-    monkeypatch.setattr(lote, "campo", lambda origen: llamadas.append(("velocidad",)) or {})
+    monkeypatch.setattr(lote, "campo", lambda origen: llamadas.append(("velocidad",)) or {"nivel": "no determinable", "lcp": "sin datos de campo"})
+    for nombre in ("ficha_google", "entidad", "wayback", "subdominios_nuevos"):
+        monkeypatch.setattr(lote, nombre, lambda *a, **k: {"status": "sin dato", "nivel": "no determinable", "llamadas": 0, "nombres": []})
     fila = lote._medir(_lead())
-    assert fila["madurez"] == "baja" and fila["ruta"] == "derivar a landing"
-    assert fila["problema"] == "derivar a landing"
-    assert llamadas == [("ia", ["agencia de marketing digital"], "Santiago"), ("leg",)]
+    assert fila["madurez"] == "baja" and fila["ruta"] == "auditar"
+    assert fila["problema"] != "derivar a landing"
+    assert ("velocidad",) in llamadas
     assert fila["ia"]["status"] == "ok"
     assert fila["hallazgos"][0]["tipo"] == "ia_prueba"
+    assert any(h.get("id") == "meta_vacia" for h in fila["hallazgos"])
 
 
 def test_la_ia_va_antes_que_la_velocidad_y_un_llms_txt_sube_la_madurez(monkeypatch):

@@ -11,10 +11,10 @@ def test_sin_web_deriva_a_landing():
     assert resultado["ruta"] == "derivar a landing"
 
 
-def test_portada_vacia_es_baja_y_no_se_audita():
+def test_portada_vacia_es_baja_y_sigue_en_el_analisis():
     resultado = clasificar("<html><title>Hola</title></html>", hoy=HOY)
     assert resultado["madurez"] == "baja"
-    assert resultado["ruta"] == "derivar a landing"
+    assert resultado["ruta"] == "auditar"
 
 
 def test_analitica_sola_es_media():
@@ -42,10 +42,10 @@ def test_blog_reciente_suma():
     assert resultado["ruta"] == "auditar"
 
 
-def test_portada_sin_respuesta_no_se_inventa():
+def test_portada_sin_respuesta_no_se_inventa_y_el_lead_sigue():
     resultado = clasificar(None, hoy=HOY, tiene_web=True)
     assert resultado["madurez"] == "no determinable"
-    assert resultado["ruta"] == "no auditar"
+    assert resultado["ruta"] == "auditar"
 
 
 def test_llms_txt_o_schema_rico_no_es_madurez_baja():

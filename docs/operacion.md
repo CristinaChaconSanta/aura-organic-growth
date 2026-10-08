@@ -39,7 +39,10 @@ decidir con datos qué producto sigue.
 
 **Orden de Descubrir:** 1) prueba en vivo con IA y 2) lectura del sitio para IA
 (`src/aura_organic_growth/ia.py` y `legibilidad_ia.py`), después 3) velocidad y
-4) búsquedas. Corre para todo lead con web, también con madurez baja.
+4) búsquedas, y en la misma corrida la auditoría SEO del sitio (advertools).
+`analisis.siempre` no cierra el diagnóstico sin el profundo. Corre para todo
+lead con web. La madurez se anota y no descarta. Un inventario incompleto
+deja al cliente. Un rastreo de hoy ya completo no se repite.
 
 **Definición de terminado por fase:** Descubrir = todas las mediciones con
 fecha o marcadas "sin dato". Definir = 5 hallazgos con consecuencia y línea

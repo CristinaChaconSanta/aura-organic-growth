@@ -67,7 +67,7 @@ def ordenar(sitios: list[dict], tope: int = TOPE_RAPIDO_S) -> tuple[list[dict], 
 
 
 def incompleto(resumen: dict | None) -> bool:
-    """Se retoma si se cortó por tiempo o si el rastreo cubrió menos del 95 % del sitemap."""
+    """Se retoma el rastreo si se cortó o cubrió menos del 95 %. El cliente no sale del análisis."""
     if not resumen:
         return True
     cobertura = resumen.get("cobertura_sitemap")
@@ -83,6 +83,7 @@ def fila_resumen(sitio: dict, resumen: dict | None, *, vuelta: int, error: str =
         "vuelta": vuelta,
         "estimado_s": sitio.get("estimado_s"),
         "estado": "error" if error else "incompleto" if incompleto(resumen) else "completo",
+        "en_analisis": True,
         "error": error,
     }
     if resumen:

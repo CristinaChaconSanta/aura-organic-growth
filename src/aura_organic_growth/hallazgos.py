@@ -36,7 +36,7 @@ def _clave(hallazgo: dict) -> tuple[int, int, int]:
 
 def _clave_sitio(hallazgo: dict) -> tuple[int, int]:
     alcance = 0 if hallazgo.get("alcance") == "sitio" else 1
-    tipo = {"velocidad": 0, "error": 1}.get(str(hallazgo.get("tipo") or ""), 2)
+    tipo = {"velocidad": 0, "error": 1, "oportunidad": 1}.get(str(hallazgo.get("tipo") or ""), 2)
     if alcance == 1:
         tipo = 2
     return alcance, tipo

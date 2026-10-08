@@ -33,7 +33,8 @@ EJEMPLOS = 5
 SIN_INDEXAR = {"transaccional", "busqueda"}
 
 ORDEN = [
-    "sitemap_con_error", "enlaces_rotos", "sitemap_noindex", "sitemap_bloqueada", "canonical_roto",
+    "sitemap_con_error", "pagina_venta_rota", "title_vacio", "meta_vacia", "h1_vacio",
+    "enlaces_rotos", "sitemap_noindex", "sitemap_bloqueada", "canonical_roto",
     "parametros_indexables", "producto_en_coleccion", "duplicados_exactos", "sitemap_no_canonica",
     "fuera_del_sitemap", "huerfanas", "profundas", "sitemap_redirige", "enlaces_a_redireccion",
     "cadenas_redireccion", "paginas_noindex", "canonical_multiple", "sin_canonical",
@@ -425,6 +426,12 @@ def analizar(
     ))
     tablas["duplicados_exactos"] = duplicados
 
+    from aura_organic_growth.oportunidades import de_paginas
+
+    for oportunidad in de_paginas(paginas, plataforma_sitio=plataforma_sitio):
+        hallazgos.append(oportunidad)
+        tablas[oportunidad["id"]] = oportunidad["ejemplos"]
+
     encontrados = [h for h in hallazgos if h]
     encontrados.sort(key=lambda h: ORDEN.index(h["id"]))
     return {
@@ -448,8 +455,11 @@ def analizar(
             "no_determinables": len(estados.no_determinables),
             "inalcanzables_desde_portada": inalcanzables,
             "nota": (
-                "Solo HTML sin JavaScript. Huérfanas, profundidad y parámetros quedan como inferido. "
-                "Las URLs que el servidor limitó (429/503) o que no respondieron quedan como no determinables, nunca como error."
+                "Solo HTML sin JavaScript. Huérfanas, profundidad y parámetros quedan como inferido "
+                "si el inventario no se terminó; el cliente sigue en el análisis. "
+                "Title, meta description o H1 vacíos en un HTML 200, y una página de venta con error, "
+                "son oportunidad observada. "
+                "Las URLs que el servidor limitó (429/503) o que no respondieron quedan como no determinables, nunca como error ni como oportunidad."
             ),
         },
         "hallazgos": encontrados,
